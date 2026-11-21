@@ -51,27 +51,27 @@ body {
 }
 
 /* Live preview */
-.cm-ld-h1,
-.cm-ld-h2,
-.cm-ld-h3,
-.cm-ld-h4,
-.cm-ld-h5,
-.cm-ld-h6 {
+#app .cm-line.cm-ld-h1,
+#app .cm-line.cm-ld-h2,
+#app .cm-line.cm-ld-h3,
+#app .cm-line.cm-ld-h4,
+#app .cm-line.cm-ld-h5,
+#app .cm-line.cm-ld-h6 {
   font-weight: 700;
   line-height: 1.3;
 }
-.cm-ld-h1 { font-size: 1.75em; }
-.cm-ld-h2 { font-size: 1.5em; }
-.cm-ld-h3 { font-size: 1.3em; }
-.cm-ld-h4 { font-size: 1.15em; }
-.cm-ld-h5 { font-size: 1.05em; }
-.cm-ld-h6 { font-size: 1em; }
+#app .cm-line.cm-ld-h1 { font-size: 1.75em; }
+#app .cm-line.cm-ld-h2 { font-size: 1.5em; }
+#app .cm-line.cm-ld-h3 { font-size: 1.3em; }
+#app .cm-line.cm-ld-h4 { font-size: 1.15em; }
+#app .cm-line.cm-ld-h5 { font-size: 1.05em; }
+#app .cm-line.cm-ld-h6 { font-size: 1em; }
 
 .cm-ld-strong { font-weight: 700; }
 .cm-ld-em { font-style: italic; }
 .cm-ld-strike { text-decoration: line-through; }
 .cm-ld-code,
-.cm-ld-codeblock {
+#app .cm-line.cm-ld-codeblock {
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   background: color-mix(in srgb, currentColor 10%, transparent);
 }
@@ -80,16 +80,16 @@ body {
   border-radius: 3px;
   padding: 0.1em 0.25em;
 }
-.cm-ld-codeblock {
+#app .cm-line.cm-ld-codeblock {
   font-size: 0.9em;
   padding-left: 0.75rem;
 }
-.cm-ld-fence {
+#app .cm-line.cm-ld-fence {
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   background: color-mix(in srgb, currentColor 10%, transparent);
   padding-left: 0.75rem;
 }
-.cm-ld-collapsed {
+#app .cm-line.cm-ld-collapsed {
   font-size: 0;
   line-height: 0;
 }
@@ -98,13 +98,13 @@ body {
   text-decoration: underline;
 }
 
-.cm-ld-quote {
+#app .cm-line.cm-ld-quote {
   border-left: 3px solid color-mix(in srgb, currentColor 35%, transparent);
   padding-left: 0.75rem;
   color: color-mix(in srgb, currentColor 75%, transparent);
 }
-.cm-ld-quote-2 { padding-left: 1.5rem; }
-.cm-ld-quote-3 { padding-left: 2.25rem; }
+#app .cm-line.cm-ld-quote-2 { padding-left: 1.5rem; }
+#app .cm-line.cm-ld-quote-3 { padding-left: 2.25rem; }
 
 .cm-ld-bullet {
   display: inline-block;
@@ -123,10 +123,10 @@ body {
 }
 
 /* One bar per quote level (the first comes from border-left). */
-.cm-ld-quote-2 {
+#app .cm-line.cm-ld-quote-2 {
   background: linear-gradient(color-mix(in srgb, currentColor 35%, transparent), color-mix(in srgb, currentColor 35%, transparent)) 0.75rem 0 / 3px 100% no-repeat;
 }
-.cm-ld-quote-3 {
+#app .cm-line.cm-ld-quote-3 {
   background:
     linear-gradient(color-mix(in srgb, currentColor 35%, transparent), color-mix(in srgb, currentColor 35%, transparent)) 0.75rem 0 / 3px 100% no-repeat,
     linear-gradient(color-mix(in srgb, currentColor 35%, transparent), color-mix(in srgb, currentColor 35%, transparent)) 1.5rem 0 / 3px 100% no-repeat;
