@@ -140,6 +140,10 @@ body {
 }
 
 /* Images: a block under their line, natural size capped to the column. */
+/* Block widgets lack .cm-line's horizontal padding; match it so images line up with text. */
+.cm-ld-image {
+  padding: 0 2px 0 6px;
+}
 .cm-ld-image img {
   max-width: 100%;
   display: block;
@@ -180,6 +184,14 @@ body {
   min-width: 1.5em;
   overflow-wrap: break-word;
   word-break: normal;
+}
+/* Long URLs and code tokens have no break opportunities and would widen the table past the
+   text column. break-all rather than overflow-wrap: anywhere, because CodeMirror's widget-buffer
+   images inside cells are ordinary break opportunities and `anywhere` leaves a blank first line. */
+.cm-ld-cell .cm-ld-link,
+.cm-ld-cell .cm-ld-code {
+  overflow-wrap: normal;
+  word-break: break-all;
 }
 .cm-ld-th .cm-ld-cell {
   font-weight: bold;

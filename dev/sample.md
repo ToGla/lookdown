@@ -14,6 +14,7 @@ Long cells that must wrap inside their column:
 |---|---|
 | Wrapping | This is a deliberately long piece of text in one cell so that it has to wrap onto several lines inside its own column and never push the table past the text column. |
 | Short | ok |
+| Unbreakable | https://example.com/a/very/long/path/without/any/spaces/that/would/otherwise/widen/the/table/past/the/text/column.html and `a_very_long_inline_code_token_without_any_break_opportunities_at_all_anywhere` |
 
 No outer pipes:
 
