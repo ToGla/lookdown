@@ -19,7 +19,40 @@ describe("resolveImage", () => {
   it("unwraps file:// URLs", () => {
     expect(resolveImage("/h/a.md", "file:///C:/x.png")).toEqual(local("C:/x.png"));
     expect(resolveImage("/h/a.md", "file:///home/x.png")).toEqual(local("/home/x.png"));
-    expect(resolveImage("/h/a.md", "file://server/share/x.png")).toEqual(local("//server/share/x.png"));
+  });
+  it("unwraps file://localhost URLs", () => {
+    expect(resolveImage("/h/a.md", "file://localhost/C:/x.png")).toEqual(local("C:/x.png"));
+    expect(resolveImage("/h/a.md", "file://LOCALHOST/home/x.png")).toEqual(local("/home/x.png"));
+  });
+  it("refuses UNC, device and remote-host paths (no network access)", () => {
+    const none = { kind: "none" };
+    for (const url of [
+      "//h/s/x.png",
+      String.raw`\\h\s\x.png`,
+      String.raw`\/h/s/x.png`,
+      String.raw`/\h/s/x.png`,
+      "file://h/s/x.png",
+      "file://server/share/x.png",
+      "file:////h/s/x.png",
+      String.raw`\\?\C:\x.png`,
+      String.raw`\\.\x`,
+      "//?/C:/x.png",
+      "%5C%5Ch%5Cs%5Cx.png",
+      "%2F%2Fh/s/x.png",
+    ]) {
+      expect(resolveImage(String.raw`C:\n\a.md`, url), url).toEqual(none);
+      expect(resolveImage("/h/a.md", url), url).toEqual(none);
+    }
+  });
+  it("refuses relative paths under a UNC document", () => {
+    expect(resolveImage(String.raw`\\srv\share\a.md`, "x.png")).toEqual({ kind: "none" });
+    expect(resolveImage("//srv/share/a.md", "img/x.png")).toEqual({ kind: "none" });
+    expect(resolveImage(String.raw`\\srv\share\a.md`, "../../../x.png")).toEqual({ kind: "none" });
+  });
+  it("never lets .. produce a leading double separator", () => {
+    expect(resolveImage("/a.md", "../..//x.png")).toEqual(local("/x.png"));
+    expect(resolveImage("/h/a.md", String.raw`..\..\..\x.png`)).toEqual(local("/x.png"));
+    expect(resolveImage(String.raw`C:\a.md`, "../../x.png")).toEqual(local(String.raw`C:\x.png`));
   });
   it("converts backslashes in relative paths to the doc separator", () => {
     expect(resolveImage("C:\\n\\a.md", "sub\\x.png")).toEqual(local("C:\\n\\sub\\x.png"));
@@ -55,5 +88,10 @@ describe("imageMime", () => {
   it("returns null otherwise", () => {
     expect(imageMime("x.bmp")).toBeNull();
     expect(imageMime("noext")).toBeNull();
+  });
+  it("ignores inherited object properties", () => {
+    expect(imageMime("x.constructor")).toBeNull();
+    expect(imageMime("x.toString")).toBeNull();
+    expect(imageMime("x.__proto__")).toBeNull();
   });
 });
