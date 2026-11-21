@@ -48,3 +48,15 @@ export class CheckboxWidget extends WidgetType {
     return false;
   }
 }
+
+export class EmptyCellWidget extends WidgetType {
+  readonly name = "empty-cell";
+  eq(other: WidgetType): boolean {
+    return other instanceof EmptyCellWidget;
+  }
+  toDOM(): HTMLElement {
+    const el = document.createElement("span");
+    el.className = "cm-ld-cell";
+    return el;
+  }
+}

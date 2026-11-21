@@ -41,7 +41,7 @@ function quoteDepth(node: SyntaxNode): number {
 }
 
 // Lines of [from, to], clamped to the range being built.
-function eachLine(
+export function eachLine(
   state: EditorState,
   emit: Emit,
   from: number,

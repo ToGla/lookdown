@@ -4,10 +4,15 @@ import type { SyntaxNodeRef } from "@lezer/common";
 import { Decoration, type DecorationSet, type WidgetType } from "@codemirror/view";
 import { blockHandlers } from "./blocks";
 import { inlineHandlers } from "./inline";
+import { tableHandlers } from "./tables";
 import { isRevealed, revealedRanges } from "./reveal";
 
 export type Emit = {
   hide(from: number, to: number): void;
+  /** Like hide, but ignores reveal (table chrome stays hidden). */
+  conceal(from: number, to: number): void;
+  /** A zero-length widget at pos. */
+  point(w: WidgetType, pos: number): void;
   mark(cls: string, from: number, to: number): void;
   line(cls: string, pos: number): void;
   widget(w: WidgetType, from: number, to: number): void;
@@ -18,7 +23,7 @@ export type Emit = {
 
 export type Handler = (node: SyntaxNodeRef, state: EditorState, emit: Emit) => boolean | void;
 
-const handlers: Record<string, Handler> = { ...inlineHandlers, ...blockHandlers };
+const handlers: Record<string, Handler> = { ...inlineHandlers, ...blockHandlers, ...tableHandlers };
 
 // Splits [from, to) into per-line pieces; line breaks are never covered.
 function lineSegments(state: EditorState, from: number, to: number): [number, number][] {
@@ -44,6 +49,15 @@ export function buildDecorations(state: EditorState, from: number, to: number): 
       for (const [a, b] of lineSegments(state, f, t)) {
         out.push(Decoration.replace({ ld: "hide" }).range(a, b));
       }
+    },
+    conceal(f, t) {
+      if (f >= t) return;
+      for (const [a, b] of lineSegments(state, f, t)) {
+        out.push(Decoration.replace({ ld: "hide" }).range(a, b));
+      }
+    },
+    point(w, pos) {
+      out.push(Decoration.widget({ widget: w, side: 1, ld: "widget" }).range(pos));
     },
     mark(cls, f, t) {
       if (f < t) out.push(Decoration.mark({ class: cls, ld: "mark" }).range(f, t));

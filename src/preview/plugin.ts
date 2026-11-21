@@ -3,6 +3,7 @@ import { type Extension } from "@codemirror/state";
 import { Decoration, type DecorationSet, EditorView, ViewPlugin, type ViewUpdate } from "@codemirror/view";
 import { buildDecorations } from "./decorations";
 import { isOpenableUrl, linkUrlAt } from "./links";
+import { rawTable } from "./table-model";
 import { enableReveal, revealEnabled } from "./reveal";
 import { toggleTask } from "./tasks";
 
@@ -29,7 +30,8 @@ const livePlugin = ViewPlugin.fromClass(
         u.selectionSet ||
         u.viewportChanged ||
         syntaxTree(u.startState) !== syntaxTree(u.state) ||
-        u.startState.field(revealEnabled) !== u.state.field(revealEnabled)
+        u.startState.field(revealEnabled) !== u.state.field(revealEnabled) ||
+        u.startState.field(rawTable) !== u.state.field(rawTable)
       ) {
         this.decorations = this.build(u.view);
         this.atomic = atomicOnly(this.decorations);
@@ -92,6 +94,7 @@ export function livePreviewPlugin(opts: { openUrl?: (url: string) => void } = {}
   };
   return [
     revealEnabled,
+    rawTable,
     livePlugin,
     EditorView.domEventHandlers({
       pointerdown: firstInput,

@@ -138,3 +138,29 @@ body {
   vertical-align: middle;
   cursor: pointer;
 }
+
+/* Tables: consecutive rows form one anonymous table, so columns align. */
+#app .cm-line.cm-ld-tr {
+  display: table-row;
+}
+.cm-ld-cell {
+  display: table-cell;
+  padding: 0.2em 0.6em;
+  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  vertical-align: top;
+  min-width: 1.5em;
+}
+.cm-ld-th .cm-ld-cell {
+  font-weight: bold;
+  border-bottom-width: 2px;
+}
+#app .cm-line.cm-ld-tdelim {
+  font-size: 0;
+  line-height: 0;
+}
+.cm-ld-align-center {
+  text-align: center;
+}
+.cm-ld-align-right {
+  text-align: right;
+}

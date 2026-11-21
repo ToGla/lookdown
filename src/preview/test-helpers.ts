@@ -2,6 +2,7 @@ import type { DecorationSet } from "@codemirror/view";
 import { EditorSelection, EditorState } from "@codemirror/state";
 import { ensureSyntaxTree } from "@codemirror/language";
 import { markdownSupport } from "./markdown";
+import { rawTable } from "./table-model";
 import { enableReveal, revealEnabled } from "./reveal";
 
 export function mdState(
@@ -14,7 +15,7 @@ export function mdState(
   let state = EditorState.create({
     doc,
     selection: opts.selection,
-    extensions: [markdownSupport(), revealEnabled, EditorState.allowMultipleSelections.of(true)],
+    extensions: [markdownSupport(), revealEnabled, rawTable, EditorState.allowMultipleSelections.of(true)],
   });
   if (opts.reveal) {
     state = state.update({ effects: enableReveal.of(null) }).state;
