@@ -1,8 +1,10 @@
-// The CodeMirror editor. Plain text for now; live preview comes later.
+// The CodeMirror editor, with Markdown live preview.
 
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { EditorState } from "@codemirror/state";
 import { EditorView, type ViewUpdate, drawSelection, keymap } from "@codemirror/view";
+
+import { livePreview, markdownSupport } from "./preview";
 
 export function createEditor(
   parent: HTMLElement,
@@ -18,6 +20,8 @@ export function createEditor(
         history(),
         drawSelection(),
         EditorView.lineWrapping,
+        markdownSupport(),
+        livePreview(),
         keymap.of([
           {
             key: "Mod-s",
