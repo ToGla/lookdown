@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { EditorSelection } from "@codemirror/state";
 import { isRevealed, revealedRanges } from "./reveal";
-import { at, mdState } from "./test-helpers";
+import { buildDecorations } from "./decorations";
+import { editAsMarkdown } from "./table-model";
+import { at, describeDecorations, mdState } from "./test-helpers";
 
 describe("revealedRanges", () => {
   it("nothing revealed before first input", () => {
@@ -57,5 +59,58 @@ describe("isRevealed", () => {
     const r = [{ from: 4, to: 5 }];
     expect(isRevealed(r, 5, 6)).toBe(true);
     expect(isRevealed(r, 6, 7)).toBe(false);
+  });
+
+  describe("table cells", () => {
+    const doc = "| **a** | *b* |\n|---|---|\n| c | d |";
+    const probe = mdState(doc);
+    const a = at(probe, "a");
+    const b = at(probe, "b");
+    const c = at(probe, "c");
+    const d = at(probe, "d");
+    const cell0 = { from: 1, to: 8 };
+    const cell1 = { from: 9, to: 14 };
+
+    it("cursor in a cell reveals only that cell", () => {
+      const s = mdState(doc, { selection: { anchor: a }, reveal: true });
+      expect(revealedRanges(s)).toEqual([cell0]);
+      const hides = describeDecorations(buildDecorations(s, 0, s.doc.length)).filter((l) => l.startsWith("hide"));
+      expect(hides).not.toContain("hide 2-4");
+      expect(hides).not.toContain("hide 5-7");
+      expect(hides).toContain("hide 10-11");
+      expect(hides).toContain("hide 12-13");
+      expect(hides).toContain("hide 0-2");
+      expect(hides).toContain("hide 7-10");
+    });
+
+    it("selection across two cells of a row", () => {
+      const s = mdState(doc, { selection: { anchor: a, head: b }, reveal: true });
+      expect(revealedRanges(s)).toEqual([{ from: 1, to: 14 }]);
+    });
+
+    it("selection across rows reveals whole lines", () => {
+      const s = mdState(doc, { selection: { anchor: a, head: d }, reveal: true });
+      expect(revealedRanges(s)).toEqual([{ from: 0, to: doc.length }]);
+      const hides = describeDecorations(buildDecorations(s, 0, s.doc.length)).filter((l) => l.startsWith("hide"));
+      expect(hides).toContain("hide 0-2");
+      expect(hides).toContain("hide 7-10");
+    });
+
+    it("body row cell", () => {
+      const s = mdState(doc, { selection: { anchor: c }, reveal: true });
+      expect(revealedRanges(s)).toEqual([{ from: doc.indexOf("| c") + 1, to: doc.indexOf("| c") + 4 }]);
+      expect(cell1.from).toBe(9);
+    });
+
+    it("raw table reveals by line", () => {
+      let s = mdState(doc, { selection: { anchor: a }, reveal: true });
+      s = s.update({ effects: editAsMarkdown.of(0) }).state;
+      expect(revealedRanges(s)).toEqual([{ from: 0, to: 15 }]);
+    });
+
+    it("before first input nothing reveals", () => {
+      const s = mdState(doc, { selection: { anchor: a } });
+      expect(revealedRanges(s)).toEqual([]);
+    });
   });
 });
