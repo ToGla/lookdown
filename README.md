@@ -110,3 +110,7 @@ verbatim, and only the edited parts are new. Line breaks you type use the
 file's most common ending. A randomized test runs hundreds of random edit
 sequences against the sample files to check that the saved file always matches what the
 editor shows.
+
+## License
+
+[MIT](LICENSE)
