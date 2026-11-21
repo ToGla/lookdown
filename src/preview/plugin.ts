@@ -81,6 +81,8 @@ export function livePreviewPlugin(opts: { openUrl?: (url: string) => void } = {}
   const firstInput = (e: Event, view: EditorView) => {
     // Pressing a bare modifier (for Mod+click) is not an edit.
     if (e instanceof KeyboardEvent && MODIFIER_KEYS.has(e.key)) return false;
+    // Mod shortcuts (Mod-s to save) are not edits either.
+    if (e instanceof KeyboardEvent && isModPressed(e)) return false;
     // A Mod+click on a link opens it; it must not reveal.
     if (e instanceof MouseEvent && modLink(e, view) !== null) return false;
     // A click on a checkbox must not reveal (and remove) it before mousedown.

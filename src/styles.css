@@ -106,8 +106,22 @@ body {
   padding-left: 0.75rem;
   color: color-mix(in srgb, currentColor 75%, transparent);
 }
-#app .cm-line.cm-ld-quote-2 { padding-left: 1.5rem; }
-#app .cm-line.cm-ld-quote-3 { padding-left: 2.25rem; }
+/* One extra bar per quote level (the first comes from border-left). Longhands,
+   so the code-block background-color is not reset. */
+#app .cm-line.cm-ld-quote-2 {
+  padding-left: 1.5rem;
+  background-image: linear-gradient(color-mix(in srgb, currentColor 35%, transparent), color-mix(in srgb, currentColor 35%, transparent));
+  background-position: 0.75rem 0;
+  background-size: 3px 100%;
+  background-repeat: no-repeat;
+}
+#app .cm-line.cm-ld-quote-3 {
+  padding-left: 2.25rem;
+  background-image: linear-gradient(color-mix(in srgb, currentColor 35%, transparent), color-mix(in srgb, currentColor 35%, transparent)), linear-gradient(color-mix(in srgb, currentColor 35%, transparent), color-mix(in srgb, currentColor 35%, transparent));
+  background-position: 0.75rem 0, 1.5rem 0;
+  background-size: 3px 100%, 3px 100%;
+  background-repeat: no-repeat, no-repeat;
+}
 
 .cm-ld-bullet {
   display: inline-block;
@@ -123,14 +137,4 @@ body {
   margin: 0 0.4em 0 0;
   vertical-align: middle;
   cursor: pointer;
-}
-
-/* One bar per quote level (the first comes from border-left). */
-#app .cm-line.cm-ld-quote-2 {
-  background: linear-gradient(color-mix(in srgb, currentColor 35%, transparent), color-mix(in srgb, currentColor 35%, transparent)) 0.75rem 0 / 3px 100% no-repeat;
-}
-#app .cm-line.cm-ld-quote-3 {
-  background:
-    linear-gradient(color-mix(in srgb, currentColor 35%, transparent), color-mix(in srgb, currentColor 35%, transparent)) 0.75rem 0 / 3px 100% no-repeat,
-    linear-gradient(color-mix(in srgb, currentColor 35%, transparent), color-mix(in srgb, currentColor 35%, transparent)) 1.5rem 0 / 3px 100% no-repeat;
 }

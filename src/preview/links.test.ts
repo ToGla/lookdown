@@ -67,3 +67,10 @@ describe("linkUrlAt shortcut and collapsed references", () => {
     expect(urlIn("[t][]", "t]")).toBeNull();
   });
 });
+
+describe("linkUrlAt www URLs", () => {
+  it("maps a bare www. URL to https", () => {
+    expect(urlIn("go www.example.com now", "example")).toBe("https://www.example.com");
+    expect(isOpenableUrl(urlIn("go www.example.com now", "example")!)).toBe(true);
+  });
+});

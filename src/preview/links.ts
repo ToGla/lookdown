@@ -83,6 +83,7 @@ export function linkUrlAt(state: EditorState, pos: number): string | null {
         if (!url) return null;
         const text = cleanUrl(state.sliceDoc(url.from, url.to));
         if (/^[a-z][a-z0-9+.-]*:/i.test(text)) return text;
+        if (node.name === "URL" && /^www\./i.test(text)) return `https://${text}`;
         const email = node.name === "Autolink" || /^[^\s/:]+@[^\s/:]+$/.test(text);
         return email ? `mailto:${text}` : null;
       }
