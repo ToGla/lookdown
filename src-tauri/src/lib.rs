@@ -1,6 +1,19 @@
+mod files;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let args: Vec<String> = std::env::args().collect();
+    let startup = std::env::current_dir()
+        .ok()
+        .and_then(|cwd| files::path_from_args(&args, &cwd));
+
     tauri::Builder::default()
+        .manage(files::StartupPath(startup))
+        .invoke_handler(tauri::generate_handler![
+            files::initial_path,
+            files::read_file,
+            files::write_file
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
@@ -32,5 +45,21 @@ mod tests {
         assert_eq!(r["codegen-units"].as_integer(), Some(1));
         assert_eq!(r["strip"].as_bool(), Some(true));
         assert_eq!(r["panic"].as_str(), Some("abort"));
+    }
+
+    #[test]
+    fn webview_is_locked_down() {
+        let c = conf();
+        assert_eq!(c["app"]["withGlobalTauri"], false);
+        let csp = c["app"]["security"]["csp"].as_str().unwrap_or("");
+        assert!(csp.contains("default-src 'self'"), "csp: {csp:?}");
+    }
+
+    #[test]
+    fn window_may_set_its_title() {
+        let cap: Value =
+            serde_json::from_str(include_str!("../capabilities/default.json")).unwrap();
+        let perms = cap["permissions"].as_array().unwrap();
+        assert!(perms.contains(&Value::from("core:window:allow-set-title")));
     }
 }
