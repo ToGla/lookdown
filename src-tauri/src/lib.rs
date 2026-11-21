@@ -13,7 +13,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             files::initial_path,
             files::read_file,
-            files::write_file
+            files::write_file,
+            files::file_size
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -43,6 +43,15 @@ pub fn write_file(path: String, contents: Vec<u8>) -> Result<(), String> {
     write_bytes(Path::new(&path), &contents)
 }
 
+/// Size in bytes, so the frontend can refuse huge images before reading them.
+#[tauri::command]
+pub fn file_size(path: String) -> Result<u64, String> {
+    let path = Path::new(&path);
+    std::fs::metadata(path)
+        .map(|m| m.len())
+        .map_err(|e| format!("{}: {e}", path.display()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -90,6 +99,22 @@ mod tests {
         let bytes = b"\xef\xbb\xbf# t\r\nlf\nlone\rend".to_vec();
         write_bytes(&path, &bytes).unwrap();
         assert_eq!(read_bytes(&path).unwrap(), bytes);
+    }
+
+    #[test]
+    fn file_size_reports_byte_length() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("three.bin");
+        write_bytes(&path, b"abc").unwrap();
+        assert_eq!(file_size(path.to_string_lossy().into_owned()), Ok(3));
+    }
+
+    #[test]
+    fn file_size_of_a_missing_file_is_an_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("missing.png");
+        let err = file_size(path.to_string_lossy().into_owned()).unwrap_err();
+        assert!(err.contains("missing.png"), "{err}");
     }
 
     #[test]

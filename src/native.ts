@@ -17,6 +17,10 @@ export async function writeFile(path: string, bytes: Uint8Array): Promise<void> 
   await invoke("write_file", { path, contents: Array.from(bytes) });
 }
 
+export function fileSize(path: string): Promise<number> {
+  return invoke<number>("file_size", { path });
+}
+
 export function setTitle(title: string): Promise<void> {
   return getCurrentWindow().setTitle(title);
 }
