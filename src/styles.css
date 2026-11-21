@@ -143,8 +143,10 @@ body {
 #app .cm-line.cm-ld-tr {
   display: table-row;
 }
-/* CodeMirror's helper nodes (widget buffers, br) would become anonymous cells. */
-#app .cm-line.cm-ld-tr > :not(.cm-ld-cell) {
+/* Widget buffers and br beside the end-of-row empty-cell widgets would become anonymous cells.
+   Other helper nodes stay: they hold the caret in place. */
+#app .cm-line.cm-ld-tr > img.cm-widgetBuffer,
+#app .cm-line.cm-ld-tr > br {
   display: none;
 }
 .cm-ld-cell {

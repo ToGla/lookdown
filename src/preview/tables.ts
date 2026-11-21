@@ -17,21 +17,20 @@ export const tableHandlers: Record<string, Handler> = {
       eachLine(state, emit, row.from, row.from, (pos) =>
         emit.line(i === 0 ? "cm-ld-tr cm-ld-th" : "cm-ld-tr", pos),
       );
+      // The cell marks tile the whole line (each starts at its left pipe), so concealed
+      // pipes and padding live inside cells and the row has no other direct children.
       let pos = row.from;
       row.cells.forEach((cell, c) => {
-        const blank = cell.textFrom === cell.textTo;
-        const markTo = blank ? cell.to : cell.textTo;
+        const visTo = cell.textFrom === cell.textTo ? cell.to : cell.textTo;
         conceal(pos, cell.textFrom);
-        if (markTo > cell.textFrom) {
-          const align = table.aligns[c];
-          const cls = align === "center" || align === "right" ? ` cm-ld-align-${align}` : "";
-          if (cell.textFrom >= rf && markTo <= rt) // Inclusive sorts the cell mark outside any inline mark with the same range, so the
-          // row's direct child stays the cell (the CSS hides other children).
-          emit.mark(`cm-ld-cell${cls}`, cell.textFrom, markTo, true);
-        } else if (cell.textFrom >= rf && cell.textFrom <= rt) {
-          emit.point(new EmptyCellWidget(), cell.textFrom);
-        }
-        pos = markTo;
+        pos = Math.max(visTo, cell.textFrom);
+        const start = c === 0 ? row.from : cell.from - 1;
+        const end = c + 1 < row.cells.length ? row.cells[c + 1].from - 1 : row.to;
+        const align = table.aligns[c];
+        const cls = align === "center" || align === "right" ? ` cm-ld-align-${align}` : "";
+        // Inclusive sorts the cell mark outside any inline mark with the same range, so the
+        // row's direct child stays the cell.
+        emit.mark(`cm-ld-cell${cls}`, Math.max(start, rf), Math.min(end, rt), true);
       });
       conceal(pos, row.to);
       if (row.to >= rf && row.to <= rt) {

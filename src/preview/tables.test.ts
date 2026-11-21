@@ -20,18 +20,17 @@ describe("table decorations", () => {
     const s = mdState(T);
     const out = describeDecorations(buildDecorations(s, 0, s.doc.length));
     const marks = out.filter((l) => l.startsWith("mark cm-ld-cell")).sort();
-    const want = ["a", "b", "c", "d"].map((ch) => {
-      const p = at(s, ch);
-      return `mark cm-ld-cell ${p}-${p + 1}`;
-    });
-    expect(marks).toEqual(want.sort());
+    expect(marks).toEqual(
+      ["0-4", "4-9", "20-24", "24-29"].map((r) => `mark cm-ld-cell ${r}`).sort(),
+    );
     const covered = new Set<number>();
     for (const l of out) {
-      const m = /^(hide|mark cm-ld-cell) (\d+)-(\d+)$/.exec(l);
-      if (m) for (let i = +m[2]; i < +m[3]; i++) covered.add(i);
+      const m = /^mark cm-ld-cell (\d+)-(\d+)$/.exec(l);
+      if (m) for (let i = +m[1]; i < +m[2]; i++) covered.add(i);
     }
     for (let i = 0; i < s.doc.length; i++) {
-      if (s.doc.sliceString(i, i + 1) !== "\n") expect(covered.has(i)).toBe(true);
+      if ((i >= 10 && i < 20) || s.doc.sliceString(i, i + 1) === "\n") continue; // delimiter row, breaks
+      expect(covered.has(i)).toBe(true);
     }
     const hidden = new Set<number>();
     for (const l of out) {
@@ -51,14 +50,14 @@ describe("table decorations", () => {
   });
   it("alignment classes", () => {
     const out = run("| a | b |\n|:-:|--:|\n| c | d |");
-    expect(out).toContain("mark cm-ld-cell cm-ld-align-center 2-3");
-    expect(out).toContain("mark cm-ld-cell cm-ld-align-right 6-7");
+    expect(out).toContain("mark cm-ld-cell cm-ld-align-center 0-4");
+    expect(out).toContain("mark cm-ld-cell cm-ld-align-right 4-9");
   });
   it("blank and missing cells", () => {
-    expect(run("|  |\n|--|\n|  |")).toContain("mark cm-ld-cell 12-13");
+    expect(run("|  |\n|--|\n|  |")).toContain("mark cm-ld-cell 0-4");
     const ragged = run("| a | b |\n|---|---|\n| c |");
     expect(ragged.filter((l) => l.startsWith("widget empty-cell"))).toEqual(["widget empty-cell 25-25"]);
-    expect(run("||\n|-|\n| a |").filter((l) => l.startsWith("widget empty-cell"))).toEqual(["widget empty-cell 1-1"]);
+    expect(run("||\n|-|\n| a |").filter((l) => l.startsWith("widget empty-cell"))).toEqual([]);
   });
   it("inline styling inside cells still renders", () => {
     const out = run("| **x** |\n|---|");
@@ -67,10 +66,12 @@ describe("table decorations", () => {
   });
   it("cell mark stays outside an inline mark with the same range", () => {
     const st = mdState("| ~~gone~~ |\n|---|");
+    let inclusive = false;
     const seen: { cls: string; startSide: number; endSide: number }[] = [];
     for (const c = buildDecorations(st, 0, st.doc.length).iter(); c.value; c.next()) {
       const spec = c.value.spec as { ld: string; class?: string };
-      if (spec.ld === "mark" && c.from === 2) {
+      if (spec.ld === "mark" && c.from <= 2) {
+        if (spec.class?.startsWith("cm-ld-cell")) inclusive = (spec as { inclusive?: boolean }).inclusive === true;
         seen.push({ cls: spec.class!, startSide: c.value.startSide, endSide: c.value.endSide });
       }
     }
@@ -79,8 +80,35 @@ describe("table decorations", () => {
     expect(cell).toBeGreaterThanOrEqual(0);
     expect(strike).toBeGreaterThanOrEqual(0);
     expect(cell).toBeLessThan(strike);
+    expect(inclusive).toBe(true);
     expect(seen[cell].startSide).toBeLessThan(seen[strike].startSide);
     expect(seen[cell].endSide).toBeGreaterThan(seen[strike].endSide);
+  });
+  it("cell marks tile each row line without gaps or overlaps", () => {
+    const docs = [
+      "| a | b |\n|---|---|\n| c | d |",
+      "a | b\n--|--\nc | d",
+      "|  |\n|--|\n|  |",
+      "||\n|-|\n||",
+      "| a | b |\n|---|---|\n| c |",
+    ];
+    for (const doc of docs) {
+      const st = mdState(doc);
+      const marks: [number, number][] = [];
+      for (const c = buildDecorations(st, 0, st.doc.length).iter(); c.value; c.next()) {
+        const spec = c.value.spec as { ld: string; class?: string };
+        if (spec.ld === "mark" && spec.class?.startsWith("cm-ld-cell")) marks.push([c.from, c.to]);
+      }
+      for (const line of [st.doc.line(1), st.doc.line(3)]) {
+        const row = marks.filter(([f, t]) => f >= line.from && t <= line.to).sort((x, y) => x[0] - y[0]);
+        let pos = line.from;
+        for (const [f, t] of row) {
+          expect(f).toBe(pos);
+          pos = t;
+        }
+        expect(pos).toBe(line.to);
+      }
+    }
   });
   it("quoted table keeps part 1", () => {
     const out = run("> | a |\n> |---|\n> | b |");
