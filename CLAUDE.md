@@ -24,7 +24,7 @@ The project uses the [superpowers](https://github.com/obra/superpowers) plugin, 
 ## Hard constraints
 
 - **Never re-serialize the document.** No parse-to-model-and-write-back (ProseMirror/Milkdown/TipTap style). Saving writes the buffer text; untouched bytes must stay identical so saves produce minimal git diffs.
-- **Preserve file encoding details:** line endings (CRLF/LF) and BOM are detected on open and written back unchanged.
+- **Preserve file encoding details:** line endings (CRLF/LF) and BOM are detected on open and written back unchanged. Put byte-exact test files (CRLF, LF, mixed, BOM) under `tests/fixtures/`: `.gitattributes` marks that path `-text` so git never converts them. Everything else is normalized to LF.
 - **Out of scope:** file tree, sidebar, workspaces/vaults, project search, or other multi-document features beyond tabs. Push back on additions that compromise startup time, binary size or simplicity.
 
 ## Behavior
