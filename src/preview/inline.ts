@@ -1,5 +1,7 @@
+import type { EditorState } from "@codemirror/state";
 import type { SyntaxNodeRef } from "@lezer/common";
 import type { Emit, Handler } from "./decorations";
+import { linkTarget } from "./links";
 
 function styled(cls: string, markName: string): Handler {
   return (node, _state, emit) => {
@@ -8,7 +10,8 @@ function styled(cls: string, markName: string): Handler {
   };
 }
 
-function link(node: SyntaxNodeRef, _state: unknown, emit: Emit): void {
+function link(node: SyntaxNodeRef, state: EditorState, emit: Emit): void {
+  if (linkTarget(state, node.node) === null) return;
   const marks = node.node.getChildren("LinkMark");
   const open = marks[0];
   const close = marks[1];

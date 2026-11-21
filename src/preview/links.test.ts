@@ -54,3 +54,16 @@ describe("isOpenableUrl", () => {
     expect(isOpenableUrl("./a.md")).toBe(false);
   });
 });
+
+describe("linkUrlAt shortcut and collapsed references", () => {
+  it("resolves a collapsed reference [t][]", () => {
+    expect(urlIn("[t][]\n\n[t]: https://x.y\n", "t]")).toBe("https://x.y");
+  });
+  it("resolves a shortcut reference [r]", () => {
+    expect(urlIn("[r]\n\n[r]: https://x.y\n", "r]")).toBe("https://x.y");
+  });
+  it("returns null for undefined shortcut and collapsed references", () => {
+    expect(urlIn("see [1] here", "1]")).toBeNull();
+    expect(urlIn("[t][]", "t]")).toBeNull();
+  });
+});

@@ -70,3 +70,24 @@ describe("inline decorations", () => {
     expect(got).toEqual(sorted(["mark cm-ld-strong 6-11", "hide 6-8", "hide 9-11"]));
   });
 });
+
+describe("undefined bracketed text stays raw", () => {
+  it("leaves [1] without a definition alone", () => {
+    expect(run("see [1] here")).toEqual([]);
+    expect(run("array[0]")).toEqual([]);
+    expect(run("[t][nope]")).toEqual([]);
+  });
+  it("renders a shortcut reference with a definition", () => {
+    expect(run("[r]\n\n[r]: https://x.y")).toEqual(sorted(["mark cm-ld-link 1-2", "hide 0-1", "hide 2-3"]));
+  });
+  it("matches labels ignoring case and spacing", () => {
+    expect(run("[T  x]\n\n[t x]: https://x.y")).toEqual(
+      sorted(["mark cm-ld-link 1-5", "hide 0-1", "hide 5-6"]),
+    );
+  });
+  it("renders a collapsed reference with a definition", () => {
+    expect(run("[t][]\n\n[t]: https://x.y")).toEqual(
+      sorted(["mark cm-ld-link 1-2", "hide 0-1", "hide 2-5"]),
+    );
+  });
+});
