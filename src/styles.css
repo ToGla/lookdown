@@ -143,12 +143,18 @@ body {
 #app .cm-line.cm-ld-tr {
   display: table-row;
 }
+/* CodeMirror's helper nodes (widget buffers, br) would become anonymous cells. */
+#app .cm-line.cm-ld-tr > :not(.cm-ld-cell) {
+  display: none;
+}
 .cm-ld-cell {
   display: table-cell;
   padding: 0.2em 0.6em;
   border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
   vertical-align: top;
   min-width: 1.5em;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 .cm-ld-th .cm-ld-cell {
   font-weight: bold;
