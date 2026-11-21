@@ -1,6 +1,7 @@
 import { syntaxTree } from "@codemirror/language";
-import { type Extension } from "@codemirror/state";
-import { Decoration, type DecorationSet, EditorView, ViewPlugin, type ViewUpdate } from "@codemirror/view";
+import { type Extension, Prec } from "@codemirror/state";
+import { Decoration, type DecorationSet, EditorView, ViewPlugin, type ViewUpdate, keymap } from "@codemirror/view";
+import { escapePipe, tableKeymap } from "./table-keys";
 import { buildDecorations } from "./decorations";
 import { isOpenableUrl, linkUrlAt } from "./links";
 import { rawTable } from "./table-model";
@@ -96,6 +97,14 @@ export function livePreviewPlugin(opts: { openUrl?: (url: string) => void } = {}
     revealEnabled,
     rawTable,
     livePlugin,
+    Prec.high(keymap.of(tableKeymap)),
+    EditorView.inputHandler.of((view, from, to, text) => {
+      if (text !== "|") return false;
+      const spec = escapePipe(view.state, from, to);
+      if (!spec) return false;
+      view.dispatch(spec);
+      return true;
+    }),
     EditorView.domEventHandlers({
       pointerdown: firstInput,
       keydown(e, view) {
