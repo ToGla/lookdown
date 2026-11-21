@@ -1,5 +1,6 @@
 import { syntaxTree } from "@codemirror/language";
 import type { EditorState, Range as CmRange } from "@codemirror/state";
+import type { SyntaxNodeRef } from "@lezer/common";
 import { Decoration, type DecorationSet, type WidgetType } from "@codemirror/view";
 import { inlineHandlers } from "./inline";
 import { isRevealed, revealedRanges } from "./reveal";
@@ -11,9 +12,6 @@ export type Emit = {
   widget(w: WidgetType, from: number, to: number): void;
   revealed(from: number, to: number): boolean;
 };
-
-// @lezer/common is only a transitive dependency, so derive the node type from the tree API.
-export type SyntaxNodeRef = Parameters<Parameters<ReturnType<typeof syntaxTree>["iterate"]>[0]["enter"]>[0];
 
 export type Handler = (node: SyntaxNodeRef, state: EditorState, emit: Emit) => boolean | void;
 

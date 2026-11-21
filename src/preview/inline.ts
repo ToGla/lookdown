@@ -1,4 +1,5 @@
-import type { Emit, Handler, SyntaxNodeRef } from "./decorations";
+import type { SyntaxNodeRef } from "@lezer/common";
+import type { Emit, Handler } from "./decorations";
 
 function styled(cls: string, markName: string): Handler {
   return (node, _state, emit) => {
