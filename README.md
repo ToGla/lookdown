@@ -4,8 +4,8 @@ A lightweight Markdown viewer and editor for quickly opening and editing a
 Markdown file, then getting out of your way.
 
 > **Status: early development.** lookdown can open a file from the command line,
-> edit it as plain text and save it. Live preview, tabs and an installer are next
-> (see [Roadmap](#roadmap)).
+> edit it with a live preview of text and blocks, and save it. Tables, images,
+> tabs and an installer are next (see [Roadmap](#roadmap)).
 
 ## Why lookdown
 
@@ -27,8 +27,8 @@ be neither:
 lookdown will edit in a *live preview* style, the way Obsidian does: the file
 stays plain Markdown, but headings, emphasis, links, lists, tables and images
 are rendered in place, and the Markdown syntax appears only on the line you are
-editing. (Today the editor still shows plain text; live preview is the next
-milestone.)
+editing. Tables and images are not rendered yet; they still show as plain
+Markdown.
 
 ## Using it
 
@@ -41,13 +41,18 @@ lookdown notes.md
 
 - `Ctrl+S` (`Cmd+S` on macOS) saves. A `•` in the window title means there are
   unsaved changes.
+- Live preview renders headings, emphasis, lists, quotes, code and links in
+  place. The syntax reappears on the line you are editing.
+- `Ctrl`+click (`Cmd`+click on macOS) on a web or mail link opens it. Other
+  link types are ignored.
+- Task list checkboxes are clickable.
 - lookdown opens UTF-8 files only. Other encodings show an error instead of
   being opened and possibly damaged.
 
 ## Roadmap
 
 1. ~~Open, edit and save one file, byte-exact~~ (done)
-2. Live preview: render CommonMark + GFM (tables, task lists, strikethrough,
+2. Live preview (text and blocks done; tables and images next): render CommonMark + GFM (tables, task lists, strikethrough,
    autolinks) in place, including local images
 3. Tabs and single instance: opening another file adds a tab to the running
    window; prompts before closing unsaved tabs; reload files changed on disk

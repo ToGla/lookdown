@@ -11,6 +11,7 @@ export function createEditor(
   doc: string,
   onUpdate: (update: ViewUpdate) => void,
   onSave: () => void,
+  openUrl: (url: string) => void,
 ): EditorView {
   return new EditorView({
     parent,
@@ -21,7 +22,7 @@ export function createEditor(
         drawSelection(),
         EditorView.lineWrapping,
         markdownSupport(),
-        livePreview(),
+        livePreview({ openUrl }),
         keymap.of([
           {
             key: "Mod-s",

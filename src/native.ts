@@ -2,6 +2,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { openUrl as openExternal } from "@tauri-apps/plugin-opener";
 
 /** The file given on the command line at startup, if any. */
 export function initialPath(): Promise<string | null> {
@@ -18,4 +19,9 @@ export async function writeFile(path: string, bytes: Uint8Array): Promise<void> 
 
 export function setTitle(title: string): Promise<void> {
   return getCurrentWindow().setTitle(title);
+}
+
+/** Opens a web or mail URL in the system's default handler. */
+export function openUrl(url: string): Promise<void> {
+  return openExternal(url);
 }

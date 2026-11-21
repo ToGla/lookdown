@@ -8,6 +8,7 @@ pub fn run() {
         .and_then(|cwd| files::path_from_args(&args, &cwd));
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
         .manage(files::StartupPath(startup))
         .invoke_handler(tauri::generate_handler![
             files::initial_path,
@@ -61,5 +62,24 @@ mod tests {
             serde_json::from_str(include_str!("../capabilities/default.json")).unwrap();
         let perms = cap["permissions"].as_array().unwrap();
         assert!(perms.contains(&Value::from("core:window:allow-set-title")));
+    }
+
+    #[test]
+    fn links_may_open_only_web_and_mail() {
+        let cap: Value =
+            serde_json::from_str(include_str!("../capabilities/default.json")).unwrap();
+        let entry = cap["permissions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|p| p["identifier"] == "opener:allow-open-url")
+            .expect("opener:allow-open-url entry");
+        let urls: Vec<&str> = entry["allow"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|a| a["url"].as_str().unwrap())
+            .collect();
+        assert_eq!(urls, ["http://*", "https://*", "mailto:*"]);
     }
 }

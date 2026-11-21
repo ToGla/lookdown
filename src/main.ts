@@ -2,7 +2,7 @@
 
 import { OpenDocument, basename, windowTitle } from "./document";
 import { createEditor } from "./editor";
-import { initialPath, readFile, setTitle, writeFile } from "./native";
+import { initialPath, openUrl, readFile, setTitle, writeFile } from "./native";
 
 const app = document.querySelector<HTMLElement>("#app")!;
 const status = document.querySelector<HTMLElement>("#status")!;
@@ -60,6 +60,7 @@ async function start(): Promise<void> {
       if (update.docChanged) refreshTitle();
     },
     () => void save(),
+    (url) => void openUrl(url).catch((error) => showStatus(`Could not open ${url}: ${String(error)}`)),
   );
   view.focus();
 }

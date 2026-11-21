@@ -97,6 +97,9 @@ body {
   color: color-mix(in srgb, currentColor 40%, #2f6fe0);
   text-decoration: underline;
 }
+.cm-ld-mod .cm-ld-link {
+  cursor: pointer;
+}
 
 #app .cm-line.cm-ld-quote {
   border-left: 3px solid color-mix(in srgb, currentColor 35%, transparent);
