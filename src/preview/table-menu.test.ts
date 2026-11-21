@@ -1,3 +1,5 @@
+import type { EditorState, TransactionSpec } from "@codemirror/state";
+import type { EditorView } from "@codemirror/view";
 import { describe, expect, it } from "vitest";
 import { menuItems } from "./table-menu";
 import { at, mdState } from "./test-helpers";
@@ -38,5 +40,35 @@ describe("menuItems", () => {
   it("is null outside a table", () => {
     const s = mdState("hello\n\n" + T);
     expect(menuItems(s, 2)).toBeNull();
+  });
+});
+
+describe("running an item", () => {
+  type Spec = Parameters<EditorView["dispatch"]>[0];
+  function fakeView(state: EditorState) {
+    const sent: Spec[] = [];
+    const view = { state, dispatch: (s: Spec) => sent.push(s), focus() {} } as unknown as EditorView;
+    return { view, sent };
+  }
+  const item = (s: EditorState, pos: number, label: string) => menuItems(s, pos)!.find((i) => i.label === label)!;
+
+  it("computes the edit from the state at click time", () => {
+    const s = mdState(T);
+    const del = item(s, at(s, "d"), "Delete row");
+    // the document changes while the menu is open
+    const later = s.update({ changes: { from: 0, insert: "x\n\n" } }).state;
+    const { view, sent } = fakeView(later);
+    del.run(view);
+    expect(sent).toHaveLength(1);
+    expect(later.update(sent[0] as TransactionSpec).state.doc.toString()).toBe("x\n\n| a | bb |\n|---|---|");
+  });
+  it("does nothing when the command no longer applies", () => {
+    const s = mdState(T);
+    const items = menuItems(s, at(s, "d"))!;
+    for (const doc of ["plain text, no table here at all", "short"]) {
+      const { view, sent } = fakeView(mdState(doc));
+      for (const i of items) i.run(view);
+      expect(sent).toHaveLength(0);
+    }
   });
 });

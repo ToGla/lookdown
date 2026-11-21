@@ -9,37 +9,43 @@ export interface MenuItem {
   run: (view: EditorView) => void;
 }
 
-/** Menu entries for a right-click at pos, or null outside grid tables. */
+type Command = (state: EditorState, pos: number) => TransactionSpec | null;
+
+/** Menu entries for a right-click at pos, or null outside grid tables. `disabled` reflects the
+ *  state at open time; `run` recomputes its edit from the view's state at click time (and does
+ *  nothing if it no longer applies), so a document change while the menu is open is safe. */
 export function menuItems(state: EditorState, pos: number): MenuItem[] | null {
-  const table = tableAt(state, pos);
-  if (!table) return null;
-  const structural = (label: string, spec: TransactionSpec | null): MenuItem => ({
+  if (!tableAt(state, pos)) return null;
+  const structural = (label: string, command: Command): MenuItem => ({
     label,
-    disabled: spec === null,
+    disabled: command(state, pos) === null,
     run(view) {
+      const spec = pos <= view.state.doc.length ? command(view.state, pos) : null;
       if (spec) view.dispatch({ ...spec, scrollIntoView: true, userEvent: "input" });
       view.focus();
     },
   });
   return [
-    structural("Insert row above", insertRow(state, pos, "above")),
-    structural("Insert row below", insertRow(state, pos, "below")),
-    structural("Delete row", deleteRow(state, pos)),
-    structural("Insert column left", insertColumn(state, pos, "left")),
-    structural("Insert column right", insertColumn(state, pos, "right")),
-    structural("Delete column", deleteColumn(state, pos)),
-    structural("Align left", setAlign(state, pos, "left")),
-    structural("Align center", setAlign(state, pos, "center")),
-    structural("Align right", setAlign(state, pos, "right")),
+    structural("Insert row above", (s, p) => insertRow(s, p, "above")),
+    structural("Insert row below", (s, p) => insertRow(s, p, "below")),
+    structural("Delete row", deleteRow),
+    structural("Insert column left", (s, p) => insertColumn(s, p, "left")),
+    structural("Insert column right", (s, p) => insertColumn(s, p, "right")),
+    structural("Delete column", deleteColumn),
+    structural("Align left", (s, p) => setAlign(s, p, "left")),
+    structural("Align center", (s, p) => setAlign(s, p, "center")),
+    structural("Align right", (s, p) => setAlign(s, p, "right")),
     {
       label: "Edit as Markdown",
       disabled: false,
       run(view) {
-        view.dispatch({
-          selection: { anchor: pos },
-          effects: editAsMarkdown.of(table.from),
-          scrollIntoView: true,
-        });
+        const table = pos <= view.state.doc.length ? tableAt(view.state, pos) : null;
+        if (table)
+          view.dispatch({
+            selection: { anchor: pos },
+            effects: editAsMarkdown.of(table.from),
+            scrollIntoView: true,
+          });
         view.focus();
       },
     },
