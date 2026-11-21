@@ -8,8 +8,10 @@ import { toggleTask } from "./tasks";
 const livePlugin = ViewPlugin.fromClass(
   class {
     decorations: DecorationSet;
+    atomic: DecorationSet;
     constructor(view: EditorView) {
       this.decorations = this.build(view);
+      this.atomic = atomicOnly(this.decorations);
     }
     update(u: ViewUpdate) {
       if (
@@ -20,6 +22,7 @@ const livePlugin = ViewPlugin.fromClass(
         u.startState.field(revealEnabled) !== u.state.field(revealEnabled)
       ) {
         this.decorations = this.build(u.view);
+        this.atomic = atomicOnly(this.decorations);
       }
     }
     build(view: EditorView): DecorationSet {
@@ -32,10 +35,20 @@ const livePlugin = ViewPlugin.fromClass(
     provide: (plugin) =>
       EditorView.atomicRanges.of((view) => {
         const value = view.plugin(plugin);
-        return value ? value.decorations : Decoration.none;
+        return value ? value.atomic : Decoration.none;
       }),
   },
 );
+
+/** Only hidden syntax and widgets are atomic; marks and lines are not. */
+export function atomicOnly(set: DecorationSet): DecorationSet {
+  const keep = [];
+  for (const c = set.iter(); c.value; c.next()) {
+    const ld = (c.value.spec as { ld?: string }).ld;
+    if (ld === "hide" || ld === "widget") keep.push(c.value.range(c.from, c.to));
+  }
+  return Decoration.set(keep, true);
+}
 
 function collect(set: DecorationSet) {
   const out = [];
@@ -46,7 +59,9 @@ function collect(set: DecorationSet) {
 export function livePreviewPlugin(opts: { openUrl?: (url: string) => void } = {}): Extension {
   // Stored for the Mod+click link handler (Task 5).
   void opts.openUrl;
-  const firstInput = (_e: Event, view: EditorView) => {
+  const firstInput = (e: Event, view: EditorView) => {
+    // A click on a checkbox must not reveal (and remove) it before mousedown.
+    if ((e.target as HTMLElement | null)?.classList?.contains("cm-ld-task")) return false;
     if (!view.state.field(revealEnabled)) view.dispatch({ effects: enableReveal.of(null) });
     return false;
   };

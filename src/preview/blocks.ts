@@ -25,7 +25,12 @@ function setext(level: number): Handler {
     for (let n = doc.lineAt(node.from).number; n <= lastText; n++) {
       emit.line(`cm-ld-h${level}`, doc.line(n).from);
     }
-    if (mark) emit.hide(mark.from, mark.to);
+    if (mark) {
+      emit.hide(mark.from, mark.to);
+      if (!emit.revealed(mark.from, mark.to) && mark.from >= emit.range.from && mark.from <= emit.range.to) {
+        emit.line("cm-ld-collapsed", mark.from);
+      }
+    }
   };
 }
 
@@ -67,7 +72,7 @@ const fenced: Handler = (node, state, emit) => {
   const fence = (pos: number, from: number, to: number) => {
     emit.line("cm-ld-fence", pos);
     if (hidden) {
-      emit.line("cm-ld-fence-hidden", pos);
+      emit.line("cm-ld-collapsed", pos);
       emit.hide(from, to);
     }
   };
@@ -93,10 +98,12 @@ export const blockHandlers: Record<string, Handler> = {
   QuoteMark(node, state, emit) {
     emit.hide(node.from, markerEnd(state, node.to));
   },
-  ListMark(node, _state, emit) {
+  ListMark(node, state, emit) {
     const list = node.node.parent?.parent;
     if (list?.name !== "BulletList") return;
-    emit.widget(new BulletWidget(), node.from, node.to);
+    // A task item shows only its checkbox.
+    if (node.node.parent?.getChild("Task")) emit.hide(node.from, markerEnd(state, node.to));
+    else emit.widget(new BulletWidget(), node.from, node.to);
   },
   TaskMarker(node, state, emit) {
     const pos = node.from + 1;

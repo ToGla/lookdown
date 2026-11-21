@@ -17,6 +17,11 @@ describe("block decorations", () => {
     expect(out).toContain("line cm-ld-h1 0");
     expect(out).toContain("hide 6-9");
   });
+  it("setext underline line collapses unless revealed", () => {
+    expect(run("Title\n===")).toContain("line cm-ld-collapsed 6");
+    const out = run("Title\n===", { reveal: true, selection: { anchor: 1 } });
+    expect(out.some((l) => l.includes("cm-ld-collapsed"))).toBe(false);
+  });
   it("setext underline in a quote or indent gets no heading class", () => {
     expect(run("> a\n> ---").filter((l) => l.includes("cm-ld-h2"))).toEqual(["line cm-ld-h2 0"]);
     expect(run("  a\n  ---").filter((l) => l.includes("cm-ld-h2"))).toEqual(["line cm-ld-h2 0"]);
@@ -49,8 +54,8 @@ describe("block decorations", () => {
     expect(run("1. a")).toEqual([]);
   });
   it("task checkbox", () => {
-    expect(run("- [ ] t")).toEqual(sorted(["widget bullet 0-1", "widget checkbox 2-5"]));
-    expect(run("- [X] t")).toEqual(sorted(["widget bullet 0-1", "widget checkbox 2-5"]));
+    expect(run("- [ ] t")).toEqual(sorted(["hide 0-2", "widget checkbox 2-5"]));
+    expect(run("- [X] t")).toEqual(sorted(["hide 0-2", "widget checkbox 2-5"]));
     const s = mdState("- [X] t");
     const set = buildDecorations(s, 0, s.doc.length);
     const found: boolean[] = [];
@@ -79,16 +84,16 @@ describe("block decorations", () => {
     expect(out).toContain("line cm-ld-fence 0");
     expect(out).toContain("line cm-ld-fence 10");
     expect(out).not.toContain("line cm-ld-fence 6");
-    expect(out).toContain("line cm-ld-fence-hidden 0");
-    expect(out).toContain("line cm-ld-fence-hidden 10");
-    expect(out).not.toContain("line cm-ld-fence-hidden 6");
+    expect(out).toContain("line cm-ld-collapsed 0");
+    expect(out).toContain("line cm-ld-collapsed 10");
+    expect(out).not.toContain("line cm-ld-collapsed 6");
     expect(out).toContain("hide 0-5");
     expect(out).toContain("hide 10-13");
     expect(out.some((l) => l.includes("cm-ld-h1"))).toBe(false);
   });
   it("revealed fenced code", () => {
     const out = run("```js\n# x\n```", { reveal: true, selection: { anchor: 7 } });
-    expect(out.some((l) => l.includes("cm-ld-fence-hidden"))).toBe(false);
+    expect(out.some((l) => l.includes("cm-ld-collapsed"))).toBe(false);
     expect(out.some((l) => l.startsWith("hide"))).toBe(false);
     expect(out).toContain("line cm-ld-fence 0");
   });
@@ -101,7 +106,7 @@ describe("block decorations", () => {
     expect(out).toContain("line cm-ld-quote 0");
     expect(out).toContain(`line cm-ld-quote ${at(mdState(doc), "\n") + 1}`);
     expect(out.filter((l) => l.startsWith("widget checkbox"))).toHaveLength(1);
-    expect(out.filter((l) => l.startsWith("widget bullet"))).toHaveLength(2);
+    expect(out.filter((l) => l.startsWith("widget bullet"))).toHaveLength(1);
   });
   it("html stays text", () => {
     expect(run("<b>x</b>")).toEqual([]);

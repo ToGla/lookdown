@@ -89,7 +89,7 @@ body {
   background: color-mix(in srgb, currentColor 10%, transparent);
   padding-left: 0.75rem;
 }
-.cm-ld-fence-hidden {
+.cm-ld-collapsed {
   font-size: 0;
   line-height: 0;
 }
@@ -120,4 +120,14 @@ body {
   margin: 0 0.4em 0 0;
   vertical-align: middle;
   cursor: pointer;
+}
+
+/* One bar per quote level (the first comes from border-left). */
+.cm-ld-quote-2 {
+  background: linear-gradient(color-mix(in srgb, currentColor 35%, transparent), color-mix(in srgb, currentColor 35%, transparent)) 0.75rem 0 / 3px 100% no-repeat;
+}
+.cm-ld-quote-3 {
+  background:
+    linear-gradient(color-mix(in srgb, currentColor 35%, transparent), color-mix(in srgb, currentColor 35%, transparent)) 0.75rem 0 / 3px 100% no-repeat,
+    linear-gradient(color-mix(in srgb, currentColor 35%, transparent), color-mix(in srgb, currentColor 35%, transparent)) 1.5rem 0 / 3px 100% no-repeat;
 }
