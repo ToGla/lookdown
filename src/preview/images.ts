@@ -1,0 +1,192 @@
+// Images render as block widgets under the line that holds them. Block widgets
+// may only come from a StateField, so this lives apart from livePlugin.
+
+import { syntaxTree } from "@codemirror/language";
+import { type EditorState, Facet, StateField } from "@codemirror/state";
+import { Decoration, type DecorationSet, EditorView, ViewPlugin, WidgetType } from "@codemirror/view";
+import type { SyntaxNode } from "@lezer/common";
+import type { ImageCache } from "./image-loader";
+import { type ImageSource, resolveImage } from "./image-path";
+import { isOpenableUrl, linkTarget } from "./links";
+import { isGridTable } from "./table-model";
+
+export interface PreviewConfig {
+  docPath: string | null;
+  images: ImageCache | null;
+}
+
+export const previewConfig = Facet.define<PreviewConfig, PreviewConfig>({
+  combine: (values) => values[0] ?? { docPath: null, images: null },
+});
+
+/** The text between `![` and `]`. */
+export function imageAlt(state: EditorState, image: SyntaxNode): string {
+  const marks = image.getChildren("LinkMark");
+  const open = marks[0];
+  const close = marks[1];
+  return open && close ? state.sliceDoc(open.to, close.from) : "";
+}
+
+/** The grid table holding this node, or null. */
+export function gridTableOf(node: SyntaxNode): SyntaxNode | null {
+  for (let n: SyntaxNode | null = node.parent; n; n = n.parent) {
+    if (n.name === "Table") return isGridTable(n) ? n : null;
+  }
+  return null;
+}
+
+export interface ImageBlock {
+  pos: number;
+  alt: string;
+  source: ImageSource;
+  href: string | null;
+}
+
+/** Every image outside grid-table cells, in source order. */
+export function imageBlocks(state: EditorState): ImageBlock[] {
+  const { docPath } = state.facet(previewConfig);
+  const out: ImageBlock[] = [];
+  syntaxTree(state).iterate({
+    enter(ref) {
+      if (ref.name !== "Image") return;
+      const node = ref.node;
+      if (gridTableOf(node)) return false;
+      let href: string | null = null;
+      const link = node.parent?.name === "Link" ? node.parent : null;
+      if (link) {
+        const target = linkTarget(state, link);
+        if (target !== null && isOpenableUrl(target)) href = target;
+      }
+      out.push({
+        pos: state.doc.lineAt(node.to).to,
+        alt: imageAlt(state, node),
+        source: resolveImage(docPath, linkTarget(state, node) ?? ""),
+        href,
+      });
+      return false;
+    },
+  });
+  return out;
+}
+
+function placeholderText(alt: string, detail: string): string {
+  return alt === "" ? detail : `${alt} — ${detail}`;
+}
+
+function missing(alt: string, detail: string): HTMLElement {
+  const el = document.createElement("span");
+  el.className = "cm-ld-image-missing";
+  el.textContent = placeholderText(alt, detail);
+  return el;
+}
+
+function sameSource(a: ImageSource, b: ImageSource): boolean {
+  if (a.kind === "local" && b.kind === "local") return a.path === b.path;
+  if (a.kind === "web" && b.kind === "web") return a.url === b.url;
+  return a.kind === b.kind;
+}
+
+export class ImageBlockWidget extends WidgetType {
+  readonly name = "image";
+  constructor(
+    readonly alt: string,
+    readonly source: ImageSource,
+    readonly href: string | null,
+  ) {
+    super();
+  }
+  eq(other: WidgetType): boolean {
+    return (
+      other instanceof ImageBlockWidget &&
+      other.alt === this.alt &&
+      other.href === this.href &&
+      sameSource(other.source, this.source)
+    );
+  }
+  toDOM(view: EditorView): HTMLElement {
+    const dom = document.createElement("div");
+    dom.className = "cm-ld-image";
+    const href = this.href ?? (this.source.kind === "web" ? this.source.url : null);
+    if (href !== null) dom.dataset.ldHref = href;
+
+    const source = this.source;
+    if (source.kind === "web") {
+      dom.append(missing(this.alt, source.url));
+      return dom;
+    }
+    const images = view.state.facet(previewConfig).images;
+    if (source.kind === "none" || !images) {
+      dom.append(missing(this.alt, "image not found"));
+      return dom;
+    }
+    void images.load(source.path).then((loaded) => {
+      if ("error" in loaded) {
+        dom.replaceChildren(missing(this.alt, loaded.error === "too-large" ? "image too large" : "image not found"));
+        if (dom.isConnected) view.requestMeasure();
+        return;
+      }
+      const img = document.createElement("img");
+      img.alt = this.alt;
+      img.onload = img.onerror = () => {
+        img.onload = img.onerror = null;
+        if (img.isConnected) view.requestMeasure();
+      };
+      img.src = loaded.url;
+      dom.replaceChildren(img);
+    });
+    return dom;
+  }
+  destroy(dom: HTMLElement): void {
+    const img = dom.querySelector("img");
+    if (img) img.onload = img.onerror = null;
+  }
+  ignoreEvent(): boolean {
+    return false;
+  }
+}
+
+function buildImages(state: EditorState): DecorationSet {
+  return Decoration.set(
+    imageBlocks(state).map((b) =>
+      Decoration.widget({
+        widget: new ImageBlockWidget(b.alt, b.source, b.href),
+        block: true,
+        side: 1,
+        ld: "widget",
+      }).range(b.pos),
+    ),
+  );
+}
+
+export const imageField = StateField.define<DecorationSet>({
+  create: buildImages,
+  update(value, tr) {
+    if (tr.docChanged || syntaxTree(tr.startState) !== syntaxTree(tr.state)) return buildImages(tr.state);
+    return value;
+  },
+  provide: (f) => EditorView.decorations.from(f),
+});
+
+function localPaths(set: DecorationSet): Set<string> {
+  const paths = new Set<string>();
+  for (const c = set.iter(); c.value; c.next()) {
+    const w = c.value.spec.widget;
+    if (w instanceof ImageBlockWidget && w.source.kind === "local") paths.add(w.source.path);
+  }
+  return paths;
+}
+
+/** Revokes object URLs of images no longer in the document. */
+export const imageRetainer = ViewPlugin.define((view) => ({
+  update(u) {
+    const set = u.state.field(imageField);
+    if (set !== u.startState.field(imageField)) u.state.facet(previewConfig).images?.retain(localPaths(set));
+  },
+  destroy() {
+    view.state.facet(previewConfig).images?.retain(new Set());
+  },
+}));
+
+export function imageExtensions(config: PreviewConfig) {
+  return [previewConfig.of(config), imageField, imageRetainer];
+}

@@ -139,6 +139,29 @@ body {
   cursor: pointer;
 }
 
+/* Images: a block under their line, natural size capped to the column. */
+.cm-ld-image img {
+  max-width: 100%;
+  display: block;
+  margin: 0.4em 0;
+}
+.cm-ld-image-missing,
+.cm-ld-image-chip {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.9em;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  border-radius: 3px;
+  padding: 0.1em 0.25em;
+  opacity: 0.65;
+}
+.cm-ld-image-missing {
+  display: inline-block;
+  margin: 0.2em 0;
+}
+.cm-ld-mod .cm-ld-image[data-ld-href] {
+  cursor: pointer;
+}
+
 /* Tables: consecutive rows form one anonymous table, so columns align. */
 #app .cm-line.cm-ld-tr {
   display: table-row;

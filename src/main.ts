@@ -2,7 +2,7 @@
 
 import { OpenDocument, basename, windowTitle } from "./document";
 import { createEditor } from "./editor";
-import { initialPath, openUrl, readFile, setTitle, writeFile } from "./native";
+import { fileSize, initialPath, openUrl, readFile, setTitle, writeFile } from "./native";
 
 const app = document.querySelector<HTMLElement>("#app")!;
 const status = document.querySelector<HTMLElement>("#status")!;
@@ -52,16 +52,16 @@ async function start(): Promise<void> {
     refreshTitle();
   };
 
-  const view = createEditor(
-    app,
-    doc.initialText,
-    (update) => {
+  const view = createEditor(app, doc.initialText, {
+    onUpdate(update) {
       for (const tr of update.transactions) doc.track(tr);
       if (update.docChanged) refreshTitle();
     },
-    () => void save(),
-    (url) => void openUrl(url).catch((error) => showStatus(`Could not open ${url}: ${String(error)}`)),
-  );
+    onSave: () => void save(),
+    openUrl: (url) => void openUrl(url).catch((error) => showStatus(`Could not open ${url}: ${String(error)}`)),
+    docPath: path,
+    imageIO: { size: fileSize, read: readFile },
+  });
   view.focus();
 }
 

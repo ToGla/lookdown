@@ -60,3 +60,20 @@ export class EmptyCellWidget extends WidgetType {
     return el;
   }
 }
+
+/** An image inside a grid-table cell: its alt text in a small chip, keeping the grid intact. */
+export class ImageChipWidget extends WidgetType {
+  readonly name = "image-chip";
+  constructor(readonly alt: string) {
+    super();
+  }
+  eq(other: WidgetType): boolean {
+    return other instanceof ImageChipWidget && other.alt === this.alt;
+  }
+  toDOM(): HTMLElement {
+    const el = document.createElement("span");
+    el.className = "cm-ld-image-chip";
+    el.textContent = `🖼 ${this.alt}`;
+    return el;
+  }
+}

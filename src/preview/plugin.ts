@@ -73,6 +73,13 @@ function collect(set: DecorationSet) {
 export function livePreviewPlugin(opts: { openUrl?: (url: string) => void } = {}): Extension {
   const modLink = (e: MouseEvent, view: EditorView): string | null => {
     if (!opts.openUrl || e.button !== 0 || !isModPressed(e)) return null;
+    // Image blocks carry their link (or web URL) on the DOM.
+    const target = e.target as HTMLElement | null;
+    const tagged = target?.closest?.<HTMLElement>("[data-ld-href]");
+    if (tagged) {
+      const href = tagged.dataset.ldHref ?? "";
+      return isOpenableUrl(href) ? href : null;
+    }
     const pos = view.posAtCoords({ x: e.clientX, y: e.clientY });
     if (pos === null) return null;
     const url = linkUrlAt(view.state, pos);
@@ -87,7 +94,7 @@ export function livePreviewPlugin(opts: { openUrl?: (url: string) => void } = {}
     if (e instanceof KeyboardEvent && MODIFIER_KEYS.has(e.key)) return false;
     // Mod shortcuts (Mod-s to save) are not edits either.
     if (e instanceof KeyboardEvent && isModPressed(e)) return false;
-    // A Mod+click on a link opens it; it must not reveal.
+    // A Mod+click on a link (or a linked image) opens it; it must not reveal.
     if (e instanceof MouseEvent && modLink(e, view) !== null) return false;
     // A click on a checkbox must not reveal (and remove) it before mousedown.
     if ((e.target as HTMLElement | null)?.classList?.contains("cm-ld-task")) return false;

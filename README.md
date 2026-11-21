@@ -4,8 +4,8 @@ A lightweight Markdown viewer and editor for quickly opening and editing a
 Markdown file, then getting out of your way.
 
 > **Status: early development.** lookdown can open a file from the command line,
-> edit it with a live preview of text and blocks, and save it. Tables, images,
-> tabs and an installer are next (see [Roadmap](#roadmap)).
+> edit it with a live preview of text, blocks, tables and images, and save it.
+> Tabs and an installer are next (see [Roadmap](#roadmap)).
 
 ## Why lookdown
 
@@ -27,8 +27,7 @@ be neither:
 lookdown will edit in a *live preview* style, the way Obsidian does: the file
 stays plain Markdown, but headings, emphasis, links, lists, tables and images
 are rendered in place, and the Markdown syntax appears only on the line you are
-editing. Tables and images are not rendered yet; they still show as plain
-Markdown.
+editing.
 
 ## Using it
 
@@ -46,15 +45,21 @@ lookdown notes.md
 - `Ctrl`+click (`Cmd`+click on macOS) on a web or mail link opens it. Other
   link types are ignored.
 - Task list checkboxes are clickable.
+- Tables render as a grid. `Tab`/`Shift+Tab` move between cells, `Enter`
+  moves down (adding a row at the end), and a right-click menu inserts,
+  deletes and aligns rows and columns.
+- Local images (PNG, JPEG, GIF, WebP, SVG) render under their line, resolved
+  against the file's folder, at natural size capped to the text column. Web
+  images are not loaded: they show their URL, and `Ctrl`+click opens it.
+  Files over 20 MB show a placeholder instead.
 - lookdown opens UTF-8 files only. Other encodings show an error instead of
   being opened and possibly damaged.
 
 ## Roadmap
 
 1. ~~Open, edit and save one file, byte-exact~~ (done)
-2. Live preview (text and blocks done; tables and images next): render
-   CommonMark + GFM (tables, task lists, strikethrough, autolinks) in place,
-   including local images
+2. ~~Live preview: render CommonMark + GFM (tables, task lists,
+   strikethrough, autolinks) in place, including local images~~ (done)
 3. Tabs and single instance: opening another file adds a tab to the running
    window; prompts before closing unsaved tabs; reload files changed on disk
 4. Native polish: menu bar, `.md` file association, portable exe and installer
