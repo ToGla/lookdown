@@ -39,6 +39,7 @@ describe("linkUrlAt destinations", () => {
     expect(urlIn("[r]: ./a.md", "a.md")).toBeNull();
   });
   it("turns a bare email into mailto", () => {
+    expect(urlIn("write sales@example.com now", "sales")).toBe("mailto:sales@example.com");
     expect(urlIn("write a@b.co now", "a@")).toBe("mailto:a@b.co");
   });
 });
