@@ -36,9 +36,11 @@ pub fn initial_path(startup: tauri::State<'_, StartupPath>) -> Option<String> {
 // or network disk must not freeze the window.
 
 /// Returns the raw bytes (an ArrayBuffer on the JavaScript side).
+/// Also opens the user's documents, which may live on a network share, so it
+/// does not refuse UNC paths; image reads are gated by `file_size`, which the
+/// frontend's image loader always calls first.
 #[tauri::command(async)]
 pub fn read_file(path: String) -> Result<Response, String> {
-    check_local(&path)?;
     read_bytes(Path::new(&path)).map(Response::new)
 }
 
@@ -47,7 +49,7 @@ pub fn write_file(path: String, contents: Vec<u8>) -> Result<(), String> {
     write_bytes(Path::new(&path), &contents)
 }
 
-/// Refuses UNC and device paths for `file_size` and `read_file`: on Windows
+/// Refuses UNC and device paths for `file_size` (and so image loads): on Windows
 /// merely touching one opens an SMB connection that sends the user's
 /// credentials. Rejects paths starting with two separators (any mix of `/`
 /// and `\`: `//host`, `\\?\`, `\\.\`) and paths containing `?` or `*` (the NT
@@ -154,11 +156,9 @@ mod tests {
     }
 
     #[test]
-    fn image_commands_refuse_nt_prefix_and_wildcard_paths() {
+    fn file_size_refuses_nt_prefix_and_wildcard_paths() {
         for path in [r"\??\UNC\h\s\x", r"\??\C:\x", "//h/s", r"C:\a*.png", "/tmp/a?.png"] {
             let err = file_size(path.to_string()).unwrap_err();
-            assert!(err.contains("not allowed"), "{path}: {err}");
-            let err = read_file(path.to_string()).err().expect(path);
             assert!(err.contains("not allowed"), "{path}: {err}");
         }
     }
