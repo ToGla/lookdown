@@ -1,3 +1,4 @@
+import type { DecorationSet } from "@codemirror/view";
 import { EditorSelection, EditorState } from "@codemirror/state";
 import { ensureSyntaxTree } from "@codemirror/language";
 import { markdownSupport } from "./markdown";
@@ -24,4 +25,27 @@ export function mdState(
 
 export function at(state: EditorState, text: string): number {
   return state.doc.toString().indexOf(text);
+}
+
+export function describeDecorations(set: DecorationSet): string[] {
+  const out: string[] = [];
+  for (const cursor = set.iter(); cursor.value; cursor.next()) {
+    const spec = cursor.value.spec as { ld: string; class?: string; widget?: { name?: string } };
+    const { from, to } = cursor;
+    switch (spec.ld) {
+      case "hide":
+        out.push(`hide ${from}-${to}`);
+        break;
+      case "mark":
+        out.push(`mark ${spec.class} ${from}-${to}`);
+        break;
+      case "line":
+        out.push(`line ${spec.class} ${from}`);
+        break;
+      case "widget":
+        out.push(`widget ${spec.widget?.name} ${from}-${to}`);
+        break;
+    }
+  }
+  return out;
 }
