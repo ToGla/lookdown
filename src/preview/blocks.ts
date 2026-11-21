@@ -20,11 +20,10 @@ function atx(level: number): Handler {
 function setext(level: number): Handler {
   return (node, state, emit) => {
     const mark = node.node.getChild("HeaderMark");
-    const lastText = mark ? mark.from - 1 : node.to;
     const doc = state.doc;
-    for (let l = doc.lineAt(node.from); ; l = doc.line(l.number + 1)) {
-      emit.line(`cm-ld-h${level}`, l.from);
-      if (l.to >= lastText || l.number >= doc.lines) break;
+    const lastText = mark ? doc.lineAt(mark.from).number - 1 : doc.lineAt(node.to).number;
+    for (let n = doc.lineAt(node.from).number; n <= lastText; n++) {
+      emit.line(`cm-ld-h${level}`, doc.line(n).from);
     }
     if (mark) emit.hide(mark.from, mark.to);
   };
@@ -36,16 +35,26 @@ function quoteDepth(node: SyntaxNode): number {
   return depth;
 }
 
-function eachLine(state: EditorState, from: number, to: number, fn: (lineFrom: number) => void) {
+// Lines of [from, to], clamped to the range being built.
+function eachLine(
+  state: EditorState,
+  emit: Emit,
+  from: number,
+  to: number,
+  fn: (lineFrom: number) => void,
+) {
   const doc = state.doc;
-  for (let l = doc.lineAt(from); ; l = doc.line(l.number + 1)) {
+  const start = Math.max(from, emit.range.from);
+  const end = Math.min(to, emit.range.to);
+  if (start > end) return;
+  for (let l = doc.lineAt(start); ; l = doc.line(l.number + 1)) {
     fn(l.from);
-    if (l.to >= to || l.number >= doc.lines) break;
+    if (l.to >= end || l.number >= doc.lines) break;
   }
 }
 
 function codeLines(cls: string, node: { from: number; to: number }, state: EditorState, emit: Emit) {
-  eachLine(state, node.from, node.to, (pos) => emit.line(cls, pos));
+  eachLine(state, emit, node.from, node.to, (pos) => emit.line(cls, pos));
 }
 
 const fenced: Handler = (node, state, emit) => {
@@ -79,7 +88,7 @@ export const blockHandlers: Record<string, Handler> = {
   Blockquote(node, state, emit) {
     const depth = quoteDepth(node.node);
     const cls = depth === 1 ? "cm-ld-quote" : `cm-ld-quote-${depth}`;
-    eachLine(state, node.from, node.to, (pos) => emit.line(cls, pos));
+    eachLine(state, emit, node.from, node.to, (pos) => emit.line(cls, pos));
   },
   QuoteMark(node, state, emit) {
     emit.hide(node.from, markerEnd(state, node.to));

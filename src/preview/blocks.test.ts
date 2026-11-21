@@ -17,6 +17,23 @@ describe("block decorations", () => {
     expect(out).toContain("line cm-ld-h1 0");
     expect(out).toContain("hide 6-9");
   });
+  it("setext underline in a quote or indent gets no heading class", () => {
+    expect(run("> a\n> ---").filter((l) => l.includes("cm-ld-h2"))).toEqual(["line cm-ld-h2 0"]);
+    expect(run("  a\n  ---").filter((l) => l.includes("cm-ld-h2"))).toEqual(["line cm-ld-h2 0"]);
+  });
+  it("clamps line classes to the build range", () => {
+    const doc = "```\n" + Array.from({ length: 200 }, (_, i) => `l${i}`).join("\n") + "\n```";
+    const s = mdState(doc);
+    const l100 = s.doc.line(100);
+    const out = describeDecorations(buildDecorations(s, l100.from, l100.to));
+    const lines = out.filter((l) => l.startsWith("line cm-ld-codeblock"));
+    expect(lines).toContain(`line cm-ld-codeblock ${l100.from}`);
+    expect(lines.length).toBeLessThanOrEqual(3);
+    const qs = mdState("> x\n".repeat(200));
+    const q100 = qs.doc.line(100);
+    const qo = describeDecorations(buildDecorations(qs, q100.from, q100.to));
+    expect(qo.filter((l) => l.startsWith("line cm-ld-quote")).length).toBeLessThanOrEqual(3);
+  });
   it("blockquote", () => {
     expect(run("> q")).toEqual(sorted(["line cm-ld-quote 0", "hide 0-2"]));
   });

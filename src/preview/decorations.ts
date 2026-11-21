@@ -12,6 +12,8 @@ export type Emit = {
   line(cls: string, pos: number): void;
   widget(w: WidgetType, from: number, to: number): void;
   revealed(from: number, to: number): boolean;
+  /** The range being built; handlers clamp per-line output to it. */
+  range: { from: number; to: number };
 };
 
 export type Handler = (node: SyntaxNodeRef, state: EditorState, emit: Emit) => boolean | void;
@@ -59,6 +61,7 @@ export function buildDecorations(state: EditorState, from: number, to: number): 
       for (const [a, b] of rest) out.push(Decoration.replace({ ld: "hide" }).range(a, b));
     },
     revealed,
+    range: { from, to },
   };
   syntaxTree(state).iterate({
     from,
