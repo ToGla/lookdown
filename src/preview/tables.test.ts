@@ -110,6 +110,32 @@ describe("table decorations", () => {
       }
     }
   });
+  it("no hide in a grid row crosses a cell mark boundary", () => {
+    const docs = [
+      "| a | b |\n|---|---|\n| c | d |",
+      "a | b\n--|--\nc | d",
+      "|  |\n|--|\n|  |",
+      "||\n|-|\n||",
+      "| a | b |\n|---|---|\n| c |",
+      "| **x** | `y` |\n|---|---|\n| ~~c~~ | d |",
+    ];
+    for (const doc of docs) {
+      const st = mdState(doc);
+      const marks: [number, number][] = [];
+      const hides: [number, number][] = [];
+      for (const c = buildDecorations(st, 0, st.doc.length).iter(); c.value; c.next()) {
+        const spec = c.value.spec as { ld: string; class?: string };
+        if (spec.ld === "mark" && spec.class?.startsWith("cm-ld-cell")) marks.push([c.from, c.to]);
+        if (spec.ld === "hide") hides.push([c.from, c.to]);
+      }
+      for (const line of [st.doc.line(1), st.doc.line(3)]) {
+        for (const [f, t] of hides.filter(([f, t]) => f >= line.from && t <= line.to)) {
+          const inside = marks.some(([mf, mt]) => f >= mf && t <= mt);
+          expect(inside, `${JSON.stringify(doc)} hide ${f}-${t}`).toBe(true);
+        }
+      }
+    }
+  });
   it("quoted table keeps part 1", () => {
     const out = run("> | a |\n> |---|\n> | b |");
     expect(out.some((l) => l.includes("cm-ld-tr") || l.includes("cm-ld-cell"))).toBe(false);

@@ -80,7 +80,8 @@ describe("isRevealed", () => {
       expect(hides).toContain("hide 10-11");
       expect(hides).toContain("hide 12-13");
       expect(hides).toContain("hide 0-2");
-      expect(hides).toContain("hide 7-10");
+      expect(hides).toContain("hide 7-8"); // concealed padding and pipe, split at the cell boundary
+      expect(hides).toContain("hide 8-10");
     });
 
     it("selection across two cells of a row", () => {
@@ -93,7 +94,8 @@ describe("isRevealed", () => {
       expect(revealedRanges(s)).toEqual([{ from: 0, to: doc.length }]);
       const hides = describeDecorations(buildDecorations(s, 0, s.doc.length)).filter((l) => l.startsWith("hide"));
       expect(hides).toContain("hide 0-2");
-      expect(hides).toContain("hide 7-10");
+      expect(hides).toContain("hide 7-8"); // concealed padding and pipe, split at the cell boundary
+      expect(hides).toContain("hide 8-10");
     });
 
     it("body row cell", () => {
