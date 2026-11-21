@@ -32,20 +32,37 @@ pub fn initial_path(startup: tauri::State<'_, StartupPath>) -> Option<String> {
     startup.0.as_ref().map(|p| p.to_string_lossy().into_owned())
 }
 
+// File commands are `async` so Tauri runs them off the main thread: a slow
+// or network disk must not freeze the window.
+
 /// Returns the raw bytes (an ArrayBuffer on the JavaScript side).
-#[tauri::command]
+#[tauri::command(async)]
 pub fn read_file(path: String) -> Result<Response, String> {
     read_bytes(Path::new(&path)).map(Response::new)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn write_file(path: String, contents: Vec<u8>) -> Result<(), String> {
     write_bytes(Path::new(&path), &contents)
 }
 
+/// True for paths starting with two separators (any mix of `/` and `\`):
+/// UNC shares and `\\?\` / `\\.\` device paths. A pure string check, so it
+/// behaves the same on every platform.
+fn is_unc_like(path: &str) -> bool {
+    let mut chars = path.chars();
+    let mut sep = || matches!(chars.next(), Some('/' | '\\'));
+    sep() && sep()
+}
+
 /// Size in bytes, so the frontend can refuse huge images before reading them.
-#[tauri::command]
+/// Refuses UNC and device paths: on Windows merely touching one opens an SMB
+/// connection that sends the user's credentials (images are local only).
+#[tauri::command(async)]
 pub fn file_size(path: String) -> Result<u64, String> {
+    if is_unc_like(&path) {
+        return Err(format!("{path}: UNC and device paths are not allowed"));
+    }
     let path = Path::new(&path);
     std::fs::metadata(path)
         .map(|m| m.len())
@@ -115,6 +132,22 @@ mod tests {
         let path = dir.path().join("missing.png");
         let err = file_size(path.to_string_lossy().into_owned()).unwrap_err();
         assert!(err.contains("missing.png"), "{err}");
+    }
+
+    #[test]
+    fn file_size_refuses_unc_and_device_paths() {
+        for path in [
+            "//host/share/x.png",
+            r"\\host\share\x.png",
+            r"\/host/share/x.png",
+            r"/\host/share/x.png",
+            r"\\?\C:\x.png",
+            r"\\.\x",
+            "//?/C:/x.png",
+        ] {
+            let err = file_size(path.to_string()).unwrap_err();
+            assert!(err.contains("UNC"), "{path}: {err}");
+        }
     }
 
     #[test]
