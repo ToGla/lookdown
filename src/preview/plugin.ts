@@ -68,7 +68,7 @@ function collect(set: DecorationSet) {
 
 export function livePreviewPlugin(opts: { openUrl?: (url: string) => void } = {}): Extension {
   const modLink = (e: MouseEvent, view: EditorView): string | null => {
-    if (!opts.openUrl || !isModPressed(e)) return null;
+    if (!opts.openUrl || e.button !== 0 || !isModPressed(e)) return null;
     const pos = view.posAtCoords({ x: e.clientX, y: e.clientY });
     if (pos === null) return null;
     const url = linkUrlAt(view.state, pos);

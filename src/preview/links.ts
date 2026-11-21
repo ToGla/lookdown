@@ -8,6 +8,9 @@ export function isOpenableUrl(url: string): boolean {
   return OPENABLE.test(url);
 }
 
+// A URL node inside one of these is a destination, never an email address.
+const LINK_PARTS = new Set(["Link", "Image", "LinkReference"]);
+
 function normalizeLabel(label: string): string {
   return label.replace(/^\[|\]$/g, "").trim().replace(/\s+/g, " ").toLowerCase();
 }
@@ -51,11 +54,14 @@ export function linkUrlAt(state: EditorState, pos: number): string | null {
         const close = marks[1];
         return open && close ? definitionUrl(state, state.sliceDoc(open.to, close.from)) : null;
       }
+      if (node.name === "URL" && node.parent && LINK_PARTS.has(node.parent.name)) continue;
       if (node.name === "Autolink" || node.name === "URL") {
         const url = node.name === "URL" ? node : node.getChild("URL");
         if (!url) return null;
         const text = cleanUrl(state.sliceDoc(url.from, url.to));
-        return /^[a-z][a-z0-9+.-]*:/i.test(text) ? text : `mailto:${text}`;
+        if (/^[a-z][a-z0-9+.-]*:/i.test(text)) return text;
+        const email = node.name === "Autolink" || /^[^s/:]+@[^s/:]+$/.test(text);
+        return email ? `mailto:${text}` : null;
       }
     }
   }

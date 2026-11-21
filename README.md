@@ -52,8 +52,9 @@ lookdown notes.md
 ## Roadmap
 
 1. ~~Open, edit and save one file, byte-exact~~ (done)
-2. Live preview (text and blocks done; tables and images next): render CommonMark + GFM (tables, task lists, strikethrough,
-   autolinks) in place, including local images
+2. Live preview (text and blocks done; tables and images next): render
+   CommonMark + GFM (tables, task lists, strikethrough, autolinks) in place,
+   including local images
 3. Tabs and single instance: opening another file adds a tab to the running
    window; prompts before closing unsaved tabs; reload files changed on disk
 4. Native polish: menu bar, `.md` file association, portable exe and installer

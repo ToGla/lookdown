@@ -28,6 +28,21 @@ describe("linkUrlAt", () => {
   });
 });
 
+describe("linkUrlAt destinations", () => {
+  it("returns a relative destination unchanged, never mailto", () => {
+    expect(urlIn("[t](./a.md)", "a.md")).toBe("./a.md");
+    expect(isOpenableUrl(urlIn("[t](./a.md)", "a.md")!)).toBe(false);
+  });
+  it("ignores images and definitions", () => {
+    expect(urlIn("![a](p.png)", "p.png")).toBeNull();
+    expect(urlIn("![a](p.png)", "a]")).toBeNull();
+    expect(urlIn("[r]: ./a.md", "a.md")).toBeNull();
+  });
+  it("turns a bare email into mailto", () => {
+    expect(urlIn("write a@b.co now", "a@")).toBe("mailto:a@b.co");
+  });
+});
+
 describe("isOpenableUrl", () => {
   it("allows only web and mail", () => {
     expect(isOpenableUrl("HTTPS://x")).toBe(true);
