@@ -131,6 +131,21 @@ describe("OpenDocument", () => {
     expect(text(s.writes[1])).toBe(original.replace("Second", "2nd").replace("Last", "Final"));
   });
 
+  test("restoring the saved text during a failed write keeps minority endings", async () => {
+    const s = session("mixed.md");
+    s.replace("crlf line\n", "crlf line");
+    let fail!: (e: Error) => void;
+    const saving = s.doc.save(() => new Promise<void>((_resolve, reject) => (fail = reject)));
+    s.replace("crlf lineanother", "crlf line\nanother");
+    fail(new Error("disk full"));
+    await expect(saving).rejects.toThrow("disk full");
+    expect(s.doc.isDirty()).toBe(false);
+    s.replace("end lf", "end LF");
+    await s.doc.save(s.write);
+    const original = text(fixture("mixed.md"));
+    expect(text(s.writes[0])).toBe(original.replace("end lf", "end LF"));
+  });
+
   test("a save started while another is writing waits, then writes the latest text", async () => {
     const s = session("crlf.md");
     s.replace("Second", "2nd");

@@ -90,6 +90,8 @@ export class OpenDocument {
     } catch (error) {
       this.pending = changes.compose(this.pending);
       this.pendingFrom = this.savedDoc;
+      // Edits during the write may have restored the saved text.
+      if (this.current.eq(this.savedDoc)) this.pending = ChangeSet.empty(this.savedDoc.length);
       throw error;
     }
     this.base = makeBase(raw);

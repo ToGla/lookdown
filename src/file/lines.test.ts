@@ -82,6 +82,50 @@ describe("rebuild", () => {
     const out = edit(raw, (doc) => ({ from: doc.length, insert: "a\nb\n" }));
     expect(out).toBe(raw + "a\r\nb\r\n");
   });
+
+  test("a line break typed right after a lone CR stays a separate line break", () => {
+    const raw = rawOf("mixed.md");
+    const out = edit(raw, (doc) => ({ from: doc.indexOf("end lf"), insert: "\n" }));
+    expect(normalized(makeBase(out))).toBe(normalized(makeBase(raw)).replace("end lf", "\nend lf"));
+  });
+
+  test("deleting text between a lone CR and an LF keeps both line breaks", () => {
+    const raw = rawOf("mixed.md");
+    const out = edit(raw, (doc) => {
+      const from = doc.indexOf("end lf");
+      return { from, to: from + "end lf".length };
+    });
+    expect(normalized(makeBase(out))).toBe(normalized(makeBase(raw)).replace("end lf", ""));
+  });
+
+  test("a CR line break typed right before an LF stays a separate line break", () => {
+    const raw = "a\rb\rc\nd";
+    const out = edit(raw, (doc) => ({ from: doc.indexOf("\nd"), insert: "\n" }));
+    expect(normalized(makeBase(out))).toBe("a\nb\nc\n\nd");
+  });
+
+  test.each(FIXTURES)("%s: random edit sequences always save the editor's lines", (name) => {
+    let seed = 1;
+    const rand = (n: number) => {
+      seed = (seed * 1103515245 + 12345) % 2147483648;
+      return seed % n;
+    };
+    const pieces = ["", "x", "\n", "\n\n", "ab\ncd", "\r"];
+    for (let run = 0; run < 40; run++) {
+      let base = makeBase(rawOf(name));
+      let state = EditorState.create({ doc: normalized(base) });
+      for (let step = 0; step < 15; step++) {
+        const len = state.doc.length;
+        const from = rand(len + 1);
+        const to = Math.min(len, from + rand(4));
+        const tr = state.update({ changes: { from, to, insert: pieces[rand(pieces.length)] } });
+        state = tr.state;
+        const raw = rebuild(base, tr.changes);
+        expect(normalized(makeBase(raw))).toBe(state.doc.toString());
+        base = makeBase(raw);
+      }
+    }
+  });
 });
 
 describe("makeBase dominant ending", () => {

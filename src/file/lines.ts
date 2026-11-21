@@ -59,11 +59,18 @@ function toRaw(base: Base, pos: number): number {
 /** The raw text after applying `changes` (made against `normalized(base)`). */
 export function rebuild(base: Base, changes: ChangeSet): string {
   let out = "";
+  const append = (piece: string) => {
+    // A CR followed by an LF would read back as one CRLF, losing a line.
+    // Only happens right at an edit; turn that CR into CRLF to keep both.
+    if (piece.startsWith("\n") && out.endsWith("\r")) out += "\n";
+    out += piece;
+  };
   let pos = 0;
   changes.iterChanges((fromA, toA, _fromB, _toB, inserted) => {
-    out += base.raw.slice(toRaw(base, pos), toRaw(base, fromA));
-    out += inserted.sliceString(0, inserted.length, base.eol);
+    append(base.raw.slice(toRaw(base, pos), toRaw(base, fromA)));
+    append(inserted.sliceString(0, inserted.length, base.eol));
     pos = toA;
   });
-  return out + base.raw.slice(toRaw(base, pos));
+  append(base.raw.slice(toRaw(base, pos)));
+  return out;
 }
