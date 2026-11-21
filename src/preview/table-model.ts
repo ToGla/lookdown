@@ -131,7 +131,11 @@ export const rawTable = StateField.define<number | null>({
     if (from === null) return null;
     const node = gridTableNear(tr.startState, from);
     if (!node || node.from !== from) return null;
-    const newFrom = tr.changes.mapPos(node.from, 1);
+    // Text inserted at the table start joins the header line (typing at column 0) unless it
+    // ends a line (Enter at column 0), in which case the table starts after its last newline.
+    const before = tr.changes.mapPos(node.from, -1);
+    const after = tr.changes.mapPos(node.from, 1);
+    const newFrom = before + tr.newDoc.sliceString(before, after).lastIndexOf("\n") + 1;
     const newTo = tr.changes.mapPos(node.to, 1);
     if (newTo <= newFrom) return null;
     return head(newFrom, tr.newSelection.ranges, newTo) ? newFrom : null;

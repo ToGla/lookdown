@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cellAt, editAsMarkdown, tableAt, tableFromNode } from "./table-model";
+import { cellAt, editAsMarkdown, rawTable, tableAt, tableFromNode } from "./table-model";
 import { syntaxTree } from "@codemirror/language";
 import { at, mdState } from "./test-helpers";
 
@@ -53,6 +53,28 @@ describe("table model", () => {
     expect(tableAt(s1, at(s1, "a"))).toBeNull();
     const s2 = s1.update({ selection: { anchor: 0 } }).state;
     expect(tableAt(s2, at(s2, "a"))).not.toBeNull();
+  });
+  it("rawTable survives typing at the start of the header line", () => {
+    // no outer pipes, so the edited header ("ya | b") is still a table
+    const doc = "x\n\na | b\n--|--\nc | d";
+    const s0 = mdState(doc, { selection: { anchor: at(mdState(doc), "a |") } });
+    const from = tableAt(s0, at(s0, "a |"))!.from;
+    const s1 = s0.update({ effects: editAsMarkdown.of(from) }).state;
+    const s2 = s1.update({ changes: { from, insert: "y" }, selection: { anchor: from + 1 } }).state;
+    expect(s2.field(rawTable)).toBe(from);
+    const s3 = s2.update({ selection: { anchor: from + 3 } }).state;
+    expect(s3.field(rawTable)).toBe(from);
+    expect(tableAt(s3, from + 3)).toBeNull();
+  });
+  it("rawTable follows the table when Enter is pressed at the start of the header line", () => {
+    const doc = "x\n\n| a |\n|---|\n| c |";
+    const s0 = mdState(doc, { selection: { anchor: at(mdState(doc), "| a") } });
+    const from = tableAt(s0, at(s0, "a"))!.from;
+    const s1 = s0.update({ effects: editAsMarkdown.of(from) }).state;
+    const s2 = s1.update({ changes: { from, insert: "\n" }, selection: { anchor: from + 1 } }).state;
+    expect(s2.field(rawTable)).toBe(from + 1);
+    const s3 = s2.update({ selection: { anchor: from + 3 } }).state;
+    expect(s3.field(rawTable)).toBe(from + 1);
   });
   it("tableFromNode agrees with tableAt", () => {
     const s = mdState("| a |\n|---|\n| c |");
