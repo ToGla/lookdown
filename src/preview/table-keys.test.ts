@@ -90,11 +90,18 @@ describe("table keys", () => {
     expect(appendRowText(tableAt(mdState("| a |\n|---|\n| b |"), 0)!)).toBe("|  |");
   });
   it("escapePipe", () => {
-    const s = mdState(T, { selection: { anchor: at(mdState(T), "bb") } });
+    const s = mdState(T);
     const p = at(s, "bb");
     const spec = escapePipe(s, p, p)!;
-    expect(s.update(spec).state.doc.toString()).toBe(T.replace("bb", "\|bb"));
+    const next = s.update(spec).state;
+    expect(next.doc.toString()).toBe(T.replace("bb", "\\|bb"));
+    expect(next.selection.main.head).toBe(p + 2);
+    expect(tableAt(next, 0)!.rows[0].cells).toHaveLength(2);
     expect(escapePipe(mdState("plain"), 1, 1)).toBeNull();
+  });
+  it("escapePipe is null when the range spans cells", () => {
+    const s = mdState(T);
+    expect(escapePipe(s, at(s, "a"), at(s, "bb"))).toBeNull();
   });
   it("emptying and retyping a cell", () => {
     const s = mdState(T);

@@ -123,10 +123,13 @@ export function leaveTable(state: EditorState): Spec | null {
 /** Replace a typed `|` inside a grid cell with `\|`. */
 export function escapePipe(state: EditorState, from: number, to: number): Spec | null {
   const table = tableAt(state, from);
-  if (!table || !cellAt(table, from)) return null;
+  const a = table && cellAt(table, from);
+  const b = table && cellAt(table, to);
+  if (!a || !b || a.row !== b.row || a.col !== b.col) return null;
+  const insert = "\\|";
   return {
-    changes: { from, to, insert: "\|" },
-    selection: EditorSelection.cursor(from + 2),
+    changes: { from, to, insert },
+    selection: EditorSelection.cursor(from + insert.length),
     userEvent: "input.type",
   };
 }
