@@ -6,6 +6,7 @@ import { buildDecorations } from "./decorations";
 import { isOpenableUrl, linkUrlAt } from "./links";
 import { rawTable } from "./table-model";
 import { enableReveal, revealEnabled } from "./reveal";
+import { tableMenu } from "./table-menu";
 import { toggleTask } from "./tasks";
 
 const MODIFIER_KEYS = new Set(["Control", "Meta", "Shift", "Alt"]);
@@ -96,6 +97,7 @@ export function livePreviewPlugin(opts: { openUrl?: (url: string) => void } = {}
   return [
     revealEnabled,
     rawTable,
+    tableMenu(),
     livePlugin,
     Prec.high(keymap.of(tableKeymap)),
     EditorView.inputHandler.of((view, from, to, text) => {
