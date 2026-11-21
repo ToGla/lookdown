@@ -16,3 +16,6 @@ src-tauri/gen/schemas/
 !.vscode/extensions.json
 .idea/
 .DS_Store
+
+# Superpowers scratch (SDD ledgers, briefs, reports)
+.superpowers/
