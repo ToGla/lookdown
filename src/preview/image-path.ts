@@ -48,6 +48,10 @@ export function resolveImage(docPath: string | null, url: string): ImageSource {
   }
 
   text = decode(text);
+  // `?` and `*` are invalid in Windows file names; `\??\UNC\host\...` is an NT
+  // prefix path that reaches the network. A bare root (left when a literal `?`
+  // starts the stripped query, as in `\??\...`) is never an image.
+  if (/[?*]/.test(text) || /^[\\/]*$/.test(text)) return NONE;
   if (ABSOLUTE.test(text)) return local(text);
   // Relative paths under a UNC document would be UNC paths too.
   if (docPath === null || DOUBLE_SEP.test(docPath)) return NONE;

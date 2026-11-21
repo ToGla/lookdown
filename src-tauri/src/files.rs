@@ -38,6 +38,7 @@ pub fn initial_path(startup: tauri::State<'_, StartupPath>) -> Option<String> {
 /// Returns the raw bytes (an ArrayBuffer on the JavaScript side).
 #[tauri::command(async)]
 pub fn read_file(path: String) -> Result<Response, String> {
+    check_local(&path)?;
     read_bytes(Path::new(&path)).map(Response::new)
 }
 
@@ -46,23 +47,25 @@ pub fn write_file(path: String, contents: Vec<u8>) -> Result<(), String> {
     write_bytes(Path::new(&path), &contents)
 }
 
-/// True for paths starting with two separators (any mix of `/` and `\`):
-/// UNC shares and `\\?\` / `\\.\` device paths. A pure string check, so it
-/// behaves the same on every platform.
-fn is_unc_like(path: &str) -> bool {
+/// Refuses UNC and device paths for `file_size` and `read_file`: on Windows
+/// merely touching one opens an SMB connection that sends the user's
+/// credentials. Rejects paths starting with two separators (any mix of `/`
+/// and `\`: `//host`, `\\?\`, `\\.\`) and paths containing `?` or `*` (the NT
+/// prefix `\??\UNC\host\...`; both are invalid in Windows file names). A pure
+/// string check, so it behaves the same on every platform.
+fn check_local(path: &str) -> Result<(), String> {
     let mut chars = path.chars();
     let mut sep = || matches!(chars.next(), Some('/' | '\\'));
-    sep() && sep()
+    if (sep() && sep()) || path.contains(['?', '*']) {
+        return Err(format!("{path}: UNC, device and wildcard paths are not allowed"));
+    }
+    Ok(())
 }
 
 /// Size in bytes, so the frontend can refuse huge images before reading them.
-/// Refuses UNC and device paths: on Windows merely touching one opens an SMB
-/// connection that sends the user's credentials (images are local only).
 #[tauri::command(async)]
 pub fn file_size(path: String) -> Result<u64, String> {
-    if is_unc_like(&path) {
-        return Err(format!("{path}: UNC and device paths are not allowed"));
-    }
+    check_local(&path)?;
     let path = Path::new(&path);
     std::fs::metadata(path)
         .map(|m| m.len())
@@ -148,6 +151,26 @@ mod tests {
             let err = file_size(path.to_string()).unwrap_err();
             assert!(err.contains("UNC"), "{path}: {err}");
         }
+    }
+
+    #[test]
+    fn image_commands_refuse_nt_prefix_and_wildcard_paths() {
+        for path in [r"\??\UNC\h\s\x", r"\??\C:\x", "//h/s", r"C:\a*.png", "/tmp/a?.png"] {
+            let err = file_size(path.to_string()).unwrap_err();
+            assert!(err.contains("not allowed"), "{path}: {err}");
+            let err = read_file(path.to_string()).err().expect(path);
+            assert!(err.contains("not allowed"), "{path}: {err}");
+        }
+    }
+
+    #[test]
+    fn image_commands_accept_a_normal_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("ok.png");
+        write_bytes(&path, b"abcd").unwrap();
+        let given = path.to_string_lossy().into_owned();
+        assert_eq!(file_size(given.clone()), Ok(4));
+        assert!(read_file(given).is_ok());
     }
 
     #[test]

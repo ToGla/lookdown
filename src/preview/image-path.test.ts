@@ -44,6 +44,18 @@ describe("resolveImage", () => {
       expect(resolveImage("/h/a.md", url), url).toEqual(none);
     }
   });
+  it("refuses NT-prefix paths and wildcards", () => {
+    for (const url of [
+      "%5C%3F%3F%5CUNC%5Ch%5Cs%5Cx.png",
+      "%5C%3F%3F%5CC:%5Cx.png",
+      String.raw`\??\UNC\h\s\x.png`,
+      "/%3F%3F/UNC/h/s/x.png",
+      "img/x%2A.png",
+    ]) {
+      expect(resolveImage(String.raw`C:\n\a.md`, url), url).toEqual({ kind: "none" });
+      expect(resolveImage("/h/a.md", url), url).toEqual({ kind: "none" });
+    }
+  });
   it("refuses relative paths under a UNC document", () => {
     expect(resolveImage(String.raw`\\srv\share\a.md`, "x.png")).toEqual({ kind: "none" });
     expect(resolveImage("//srv/share/a.md", "img/x.png")).toEqual({ kind: "none" });
