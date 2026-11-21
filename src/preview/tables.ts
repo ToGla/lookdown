@@ -25,7 +25,9 @@ export const tableHandlers: Record<string, Handler> = {
         if (markTo > cell.textFrom) {
           const align = table.aligns[c];
           const cls = align === "center" || align === "right" ? ` cm-ld-align-${align}` : "";
-          if (cell.textFrom >= rf && markTo <= rt) emit.mark(`cm-ld-cell${cls}`, cell.textFrom, markTo);
+          if (cell.textFrom >= rf && markTo <= rt) // Inclusive sorts the cell mark outside any inline mark with the same range, so the
+          // row's direct child stays the cell (the CSS hides other children).
+          emit.mark(`cm-ld-cell${cls}`, cell.textFrom, markTo, true);
         } else if (cell.textFrom >= rf && cell.textFrom <= rt) {
           emit.point(new EmptyCellWidget(), cell.textFrom);
         }

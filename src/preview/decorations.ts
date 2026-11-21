@@ -13,7 +13,7 @@ export type Emit = {
   conceal(from: number, to: number): void;
   /** A zero-length widget at pos. */
   point(w: WidgetType, pos: number): void;
-  mark(cls: string, from: number, to: number): void;
+  mark(cls: string, from: number, to: number, inclusive?: boolean): void;
   line(cls: string, pos: number): void;
   widget(w: WidgetType, from: number, to: number): void;
   revealed(from: number, to: number): boolean;
@@ -59,8 +59,8 @@ export function buildDecorations(state: EditorState, from: number, to: number): 
     point(w, pos) {
       out.push(Decoration.widget({ widget: w, side: 1, ld: "widget" }).range(pos));
     },
-    mark(cls, f, t) {
-      if (f < t) out.push(Decoration.mark({ class: cls, ld: "mark" }).range(f, t));
+    mark(cls, f, t, inclusive) {
+      if (f < t) out.push(Decoration.mark({ class: cls, ld: "mark", inclusive }).range(f, t));
     },
     line(cls, pos) {
       const l = state.doc.lineAt(pos).from;

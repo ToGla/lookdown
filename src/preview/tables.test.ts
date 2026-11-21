@@ -65,6 +65,23 @@ describe("table decorations", () => {
     expect(out.some((l) => l.startsWith("mark cm-ld-strong"))).toBe(true);
     expect(out).toContain("hide 2-4");
   });
+  it("cell mark stays outside an inline mark with the same range", () => {
+    const st = mdState("| ~~gone~~ |\n|---|");
+    const seen: { cls: string; startSide: number; endSide: number }[] = [];
+    for (const c = buildDecorations(st, 0, st.doc.length).iter(); c.value; c.next()) {
+      const spec = c.value.spec as { ld: string; class?: string };
+      if (spec.ld === "mark" && c.from === 2) {
+        seen.push({ cls: spec.class!, startSide: c.value.startSide, endSide: c.value.endSide });
+      }
+    }
+    const cell = seen.findIndex((m) => m.cls.startsWith("cm-ld-cell"));
+    const strike = seen.findIndex((m) => m.cls.includes("strike"));
+    expect(cell).toBeGreaterThanOrEqual(0);
+    expect(strike).toBeGreaterThanOrEqual(0);
+    expect(cell).toBeLessThan(strike);
+    expect(seen[cell].startSide).toBeLessThan(seen[strike].startSide);
+    expect(seen[cell].endSide).toBeGreaterThan(seen[strike].endSide);
+  });
   it("quoted table keeps part 1", () => {
     const out = run("> | a |\n> |---|\n> | b |");
     expect(out.some((l) => l.includes("cm-ld-tr") || l.includes("cm-ld-cell"))).toBe(false);
