@@ -63,4 +63,22 @@ describe("imageBlocks", () => {
       expect(imageBlocks(s).map((b) => b.pos)).toEqual([s.doc.line(1).to]);
     }
   });
+
+  it("an image with no destination stays plain text", () => {
+    for (const doc of ["See ![note] here", "![a][nope]", "![[x.png]]"]) {
+      expect(imageBlocks(mdState(doc, D))).toEqual([]);
+      expect(decos(doc).filter((d) => d.startsWith("hide") || d.startsWith("widget"))).toEqual([]);
+    }
+  });
+
+  it("an image with no destination in a grid cell is not a chip", () => {
+    const doc = "| a |\n|---|\n| ![a][nope] |";
+    expect(decos(doc).some((d) => d.includes("image-chip"))).toBe(false);
+  });
+
+  it("a defined reference image still renders", () => {
+    const doc = "![b][r]\n\n[r]: j.png";
+    expect(imageBlocks(mdState(doc, D)).map((b) => b.source)).toEqual([{ kind: "local", path: "/d/j.png" }]);
+    expect(decos(doc)).toContain("hide 0-7");
+  });
 });

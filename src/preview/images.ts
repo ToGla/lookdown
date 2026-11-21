@@ -51,6 +51,9 @@ export function imageBlocks(state: EditorState): ImageBlock[] {
       if (ref.name !== "Image") return;
       const node = ref.node;
       if (gridTableOf(node)) return false;
+      // No destination (`![x]`, an undefined reference, `![[x]]`): plain text, like links.
+      const url = linkTarget(state, node);
+      if (url === null) return false;
       let href: string | null = null;
       const link = node.parent?.name === "Link" ? node.parent : null;
       if (link) {
@@ -60,7 +63,7 @@ export function imageBlocks(state: EditorState): ImageBlock[] {
       out.push({
         pos: state.doc.lineAt(node.to).to,
         alt: imageAlt(state, node),
-        source: resolveImage(docPath, linkTarget(state, node) ?? ""),
+        source: resolveImage(docPath, url),
         href,
       });
       return false;

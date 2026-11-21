@@ -37,6 +37,8 @@ function autolink(node: SyntaxNodeRef, _state: unknown, emit: Emit): void {
 // The image itself is a block widget from imageField; here only its syntax is hidden.
 // In a grid-table cell it becomes a chip instead (a table shown raw keeps its text).
 function image(node: SyntaxNodeRef, state: EditorState, emit: Emit): boolean {
+  // No destination: plain text, like a link without one (inline styling inside still applies).
+  if (linkTarget(state, node.node) === null) return true;
   const table = gridTableOf(node.node);
   if (!table) emit.hide(node.from, node.to);
   else if (state.field(rawTable, false) !== table.from) {
