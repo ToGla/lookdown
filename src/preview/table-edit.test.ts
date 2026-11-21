@@ -1,6 +1,7 @@
 import type { EditorState, TransactionSpec } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
 import { deleteColumn, deleteRow, insertColumn, insertRow, setAlign } from "./table-edit";
+import { tableAt } from "./table-model";
 import { at, mdState } from "./test-helpers";
 
 const T = "| a | bb |\n|---|---|\n| c | d |";
@@ -18,6 +19,12 @@ function run(doc: string, pos: number, fn: (s: EditorState, pos: number) => Tran
   return { doc: next.doc.toString(), head: next.selection.main.head };
 }
 const p = (doc: string, text: string) => at(mdState(doc), text);
+
+/** Re-parses `doc` (a table containing its first `|`): header column count and cells per row. */
+function shape(doc: string) {
+  const t = tableAt(mdState(doc), doc.indexOf("|"));
+  return t && { columns: t.columns, cells: t.rows.map((r) => r.cells.length) };
+}
 
 describe("insertRow", () => {
   it("below a inserts after the delimiter row, cursor in the same column", () => {
@@ -69,58 +76,97 @@ describe("insertColumn", () => {
     expect(run(T, p(T, "a"), (s, x) => insertColumn(s, x, "right"))!.doc).toBe(
       "| a |  | bb |\n|---|---|---|\n| c |  | d |",
     );
+    expect(shape("| a |  | bb |\n|---|---|---|\n| c |  | d |")).toEqual({ columns: 3, cells: [3, 3] });
   });
   it("left of a", () => {
     expect(run(T, p(T, "a"), (s, x) => insertColumn(s, x, "left"))!.doc).toBe(
       "|  | a | bb |\n|---|---|---|\n|  | c | d |",
     );
+    expect(shape("|  | a | bb |\n|---|---|---|\n|  | c | d |")).toEqual({ columns: 3, cells: [3, 3] });
   });
   it("right of the last column", () => {
     expect(run(T, p(T, "bb"), (s, x) => insertColumn(s, x, "right"))!.doc).toBe(
       "| a | bb |  |\n|---|---|---|\n| c | d |  |",
     );
+    expect(shape("| a | bb |  |\n|---|---|---|\n| c | d |  |")).toEqual({ columns: 3, cells: [3, 3] });
   });
   it("no outer pipes: right of b needs a trailing pipe to keep the cell", () => {
     expect(run(NP, p(NP, "b"), (s, x) => insertColumn(s, x, "right"))!.doc).toBe(
       "a | b|  |\n--|--|---|\nc | d|  |",
     );
+    expect(shape("a | b|  |\n--|--|---|\nc | d|  |")).toEqual({ columns: 3, cells: [3, 3] });
   });
+  // a leading `|` would be read as an outer pipe, so a new first column gets one on each side
   it("no outer pipes: left of a, and right of a", () => {
     expect(run(NP, p(NP, "a"), (s, x) => insertColumn(s, x, "left"))!.doc).toBe(
-      "  |a | b\n---|--|--\n  |c | d",
+      "|  |a | b\n|---|--|--\n|  |c | d",
     );
     expect(run(NP, p(NP, "a"), (s, x) => insertColumn(s, x, "right"))!.doc).toBe(
       "a |  | b\n--|---|--\nc |  | d",
     );
+    expect(shape("|  |a | b\n|---|--|--\n|  |c | d")).toEqual({ columns: 3, cells: [3, 3] });
+    expect(shape("a |  | b\n--|---|--\nc |  | d")).toEqual({ columns: 3, cells: [3, 3] });
   });
   it("ragged: short rows are left alone", () => {
     expect(run(RAGGED, p(RAGGED, "b"), (s, x) => insertColumn(s, x, "right"))!.doc).toBe(
       "| a | b |  |\n|---|---|---|\n| c |",
     );
+    expect(shape("| a | b |  |\n|---|---|---|\n| c |")).toEqual({ columns: 3, cells: [3, 1] });
   });
 });
 
 describe("deleteColumn", () => {
   it("bb", () => {
     expect(run(T, p(T, "bb"), deleteColumn)!.doc).toBe("| a |\n|---|\n| c |");
+    expect(shape("| a |\n|---|\n| c |")).toEqual({ columns: 1, cells: [1, 1] });
   });
   it("a", () => {
     expect(run(T, p(T, "a"), deleteColumn)!.doc).toBe("| bb |\n|---|\n| d |");
+    expect(shape("| bb |\n|---|\n| d |")).toEqual({ columns: 1, cells: [1, 1] });
   });
   it("one column is null", () => {
     expect(run("| a |\n|---|\n| c |", 3, deleteColumn)).toBeNull();
   });
   it("no outer pipes, down to one column keeps a pipe so it stays a table", () => {
-    expect(run(NP, p(NP, "a"), deleteColumn)!.doc).toBe("| b\n|--\n| d");
+    expect(run(NP, p(NP, "a"), deleteColumn)!.doc).toBe("| b\n|--|\n| d");
     expect(run(NP, p(NP, "b"), deleteColumn)!.doc).toBe("a |\n--|\nc |");
+    expect(shape("| b\n|--|\n| d")).toEqual({ columns: 1, cells: [1, 1] });
+    expect(shape("a |\n--|\nc |")).toEqual({ columns: 1, cells: [1, 1] });
   });
   it("no outer pipes, three columns", () => {
     const N3 = "a | b | c\n--|--|--\nd | e | f";
     expect(run(N3, p(N3, "b"), deleteColumn)!.doc).toBe("a | c\n--|--\nd | f");
     expect(run(N3, p(N3, "c"), deleteColumn)!.doc).toBe("a | b \n--|--\nd | e ");
+    expect(shape("a | c\n--|--\nd | f")).toEqual({ columns: 2, cells: [2, 2] });
+    expect(shape("a | b \n--|--\nd | e ")).toEqual({ columns: 2, cells: [2, 2] });
   });
   it("ragged: untouched short row", () => {
     expect(run(RAGGED, p(RAGGED, "b"), deleteColumn)!.doc).toBe("| a |\n|---|\n| c |");
+    expect(shape("| a |\n|---|\n| c |")).toEqual({ columns: 1, cells: [1, 1] });
+  });
+  // A row whose only cell is deleted keeps a single `|`: an empty line would end the table and
+  // push the following rows out of it.
+  it("ragged: a one-cell row without a trailing pipe keeps a pipe", () => {
+    const R = "| a | b |\n|---|---|\n| c\n| e | f |";
+    const r = run(R, p(R, "a"), deleteColumn)!;
+    expect(r.doc).toBe("| b |\n|---|\n|\n| f |");
+    expect(shape(r.doc)).toEqual({ columns: 1, cells: [1, 1, 1] });
+  });
+  it("no outer pipes: a bare one-cell row keeps a pipe", () => {
+    const R = "a | b\n--|--\nc\nd | e";
+    const r = run(R, p(R, "a"), deleteColumn)!;
+    expect(r.doc).toBe("| b\n|--|\n|\n| e");
+    expect(shape(r.doc)).toEqual({ columns: 1, cells: [1, 1, 1] });
+    const R3 = "a | b | x\n--|--|--\nc\nd | e | f";
+    const r3 = run(R3, p(R3, "a"), deleteColumn)!;
+    expect(r3.doc).toBe(" b | x\n--|--\n|\n e | f");
+    expect(shape(r3.doc)).toEqual({ columns: 2, cells: [2, 1, 2] });
+  });
+  it("no outer pipes: a one-cell row with a trailing pipe keeps it", () => {
+    const R3 = "a | b | x\n--|--|--\nc |\nd | e | f";
+    const r3 = run(R3, p(R3, "a"), deleteColumn)!;
+    expect(r3.doc).toBe(" b | x\n--|--\n|\n e | f");
+    expect(shape(r3.doc)).toEqual({ columns: 2, cells: [2, 1, 2] });
   });
 });
 
@@ -143,7 +189,7 @@ describe("setAlign", () => {
 
 describe("undo", () => {
   it("every command on every shape restores the original", () => {
-    for (const doc of [T, NP, RAGGED]) {
+    for (const doc of [T, NP, RAGGED, "| a | b |\n|---|---|\n| c", "a | b\n--|--\nc", "a | b | x\n--|--|--\nc"]) {
       for (const text of ["a", "b", "c"]) {
         const pos = p(doc, text);
         if (pos < 0) continue;

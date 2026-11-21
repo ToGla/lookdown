@@ -59,7 +59,7 @@ export function deleteRow(state: EditorState, pos: number): Spec | null {
 }
 
 const hasPipeAt = (state: EditorState, row: Row, at: number) =>
-  at < row.to && state.doc.sliceString(at, at + 1) === "|";
+  at >= row.from && at < row.to && state.doc.sliceString(at, at + 1) === "|";
 
 export function insertColumn(state: EditorState, pos: number, side: "left" | "right"): Spec | null {
   const c = ctxAt(state, pos);
@@ -70,7 +70,11 @@ export function insertColumn(state: EditorState, pos: number, side: "left" | "ri
     if (row.cells.length <= col) continue;
     const blank = row === table.delimiter ? "---" : "  ";
     const cell = row.cells[col];
-    if (side === "left") changes.push({ from: cell.from, insert: blank + "|" });
+    // a `|` at the line start would be read as an outer pipe, so a new first cell without one
+    // gets a pipe on each side (the row gains outer pipes)
+    if (side === "left" && !hasPipeAt(state, row, cell.from - 1))
+      changes.push({ from: cell.from, insert: "|" + blank + "|" });
+    else if (side === "left") changes.push({ from: cell.from, insert: blank + "|" });
     else if (hasPipeAt(state, row, cell.to)) changes.push({ from: cell.to + 1, insert: blank + "|" });
     // last cell without a trailing pipe: a blank cell needs one on each side to stay a cell
     else changes.push({ from: row.to, insert: "|" + blank + "|" });
@@ -83,16 +87,31 @@ export function deleteColumn(state: EditorState, pos: number): Spec | null {
   if (!c || c.table.columns === 1) return null;
   const { table, col } = c;
   // Without outer pipes a single column would read as plain text (or a setext heading), so
-  // going from 2 columns to 1 keeps one pipe.
+  // going from 2 columns to 1 keeps one pipe. A one-column delimiter row with a leading pipe
+  // also needs a trailing one (`|--|`, not `|--`) to parse.
   const keepPipe = !table.outerPipes && table.columns === 2;
   const changes: ChangeSpec[] = [];
   for (const row of [...table.rows, table.delimiter]) {
     if (row.cells.length <= col) continue;
     const cell = row.cells[col];
-    if (keepPipe) changes.push({ from: cell.from, to: cell.to });
-    else if (hasPipeAt(state, row, cell.to)) changes.push({ from: cell.from, to: cell.to + 1 });
-    else if (cell.from > row.from) changes.push({ from: cell.from - 1, to: cell.to });
-    else changes.push({ from: cell.from, to: cell.to });
+    let from = cell.from;
+    let to = cell.to;
+    if (!keepPipe) {
+      if (hasPipeAt(state, row, cell.to)) to++;
+      else if (cell.from > row.from) from--;
+    }
+    const rest = state.doc.sliceString(row.from, from) + state.doc.sliceString(to, row.to);
+    if (!rest.includes("|")) {
+      // Deleting the row's only cell would blank the line, which ends the table and drops the
+      // rows after it. Keep a lone `|` (an empty one-cell row) instead.
+      const piped = hasPipeAt(state, row, cell.from - 1) || hasPipeAt(state, row, cell.to);
+      changes.push({ from: cell.from, to: cell.to, insert: piped ? "" : "|" });
+      continue;
+    }
+    changes.push({ from, to });
+    const other = row.cells[col === 0 ? 1 : 0];
+    if (keepPipe && row === table.delimiter && col === 0 && other && !hasPipeAt(state, row, other.to))
+      changes.push({ from: row.to, insert: "|" });
   }
   return { changes };
 }
