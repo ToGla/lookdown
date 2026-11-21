@@ -6,9 +6,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 lookdown is a lightweight WYSIWYG Markdown viewer and editor for quickly opening and editing Markdown files. Guiding priorities, in order: lightweight, simple, quick to start, easy self-contained install.
 
-## Status
+## Commands
 
-No code yet. The design below is decided; build commands and project layout get added here once the project is scaffolded.
+Tools (node, pnpm, rust) come from `mise.toml`.
+
+- `pnpm install`: install frontend dependencies
+- `pnpm tauri dev`: run the app with Vite hot reload (Vite on port 1420)
+- `pnpm tauri build`: size-optimized release build and bundles
+- `pnpm test`: frontend tests (Vitest, `src/**/*.test.ts`)
+- `cargo test --manifest-path src-tauri/Cargo.toml`: Rust tests
+
+Use `pnpm run <script>` when checking whether a script exists: a bare `pnpm test` with no `test` script exits 0 silently.
+
+## Layout
+
+- `index.html`, `src/`: frontend (TypeScript, no UI framework), built by Vite into `dist/`
+- `src-tauri/`: Rust shell (`src/lib.rs` holds `run()`, `tauri.conf.json`, `capabilities/`, `icons/`)
+- `tests/fixtures/`: byte-exact test files (see Hard constraints)
+- `docs/superpowers/`: specs and plans
 
 ## Workflow
 
