@@ -8,9 +8,16 @@ import { type Base, makeBase, normalized, rebuild } from "./file/lines";
 export type Writer = (path: string, bytes: Uint8Array) => Promise<void>;
 
 export class OpenDocument {
-  /** Changes from `normalized(base)` to the current editor text. */
-  private pending: ChangeSet;
+  /** The text on disk (normalized), matching `base`. */
   private savedDoc: Text;
+  /** The editor's current text. */
+  private current: Text;
+  /** Changes from `pendingFrom` to `current`. */
+  private pending: ChangeSet;
+  /** `savedDoc`, or the text being written while a save runs. */
+  private pendingFrom: Text;
+  /** The last save started, until it settles; saves run one at a time. */
+  private running: Promise<void> | null = null;
 
   private constructor(
     readonly path: string,
@@ -18,6 +25,8 @@ export class OpenDocument {
     private readonly bom: boolean,
   ) {
     this.savedDoc = Text.of(normalized(base).split("\n"));
+    this.current = this.savedDoc;
+    this.pendingFrom = this.savedDoc;
     this.pending = ChangeSet.empty(this.savedDoc.length);
   }
 
@@ -35,29 +44,52 @@ export class OpenDocument {
   /** Call for every editor transaction. */
   track(tr: Transaction): void {
     if (!tr.docChanged) return;
+    this.current = tr.newDoc;
     this.pending = this.pending.compose(tr.changes);
-    // Back at the saved text (e.g. after undo): drop the round trip so
+    // Back at the starting text (e.g. after undo): drop the round trip so
     // re-inserted line breaks never replace their original endings.
-    if (tr.newDoc.length === this.savedDoc.length && tr.newDoc.eq(this.savedDoc)) {
-      this.pending = ChangeSet.empty(this.savedDoc.length);
+    const from = this.pendingFrom;
+    if (tr.newDoc.length === from.length && tr.newDoc.eq(from)) {
+      this.pending = ChangeSet.empty(from.length);
     }
   }
 
-  isDirty(doc: Text): boolean {
-    return !doc.eq(this.savedDoc);
+  isDirty(): boolean {
+    return !this.current.eq(this.savedDoc);
   }
 
-  /** Write the current text. Rejects with the writer's error, changing nothing. */
-  async save(doc: Text, write: Writer): Promise<"saved" | "clean"> {
-    if (!this.isDirty(doc)) return "clean";
+  /**
+   * Write the current text, after any save already running. Rejects with the
+   * writer's error, leaving the document dirty and its tracking intact.
+   */
+  save(write: Writer): Promise<"saved" | "clean"> {
+    // Start at once when idle, so the text saved is the text at the keypress.
+    const running = this.running;
+    const run = running ? running.then(() => this.saveNow(write)) : this.saveNow(write);
+    const settled: Promise<void> = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    this.running = settled;
+    void settled.then(() => {
+      if (this.running === settled) this.running = null;
+    });
+    return run;
+  }
+
+  private async saveNow(write: Writer): Promise<"saved" | "clean"> {
+    if (!this.isDirty()) return "clean";
+    const doc = this.current;
     const changes = this.pending;
     const raw = rebuild(this.base, changes);
     // Edits made while the write runs are tracked relative to `doc`.
     this.pending = ChangeSet.empty(doc.length);
+    this.pendingFrom = doc;
     try {
       await write(this.path, encode(raw, this.bom));
     } catch (error) {
       this.pending = changes.compose(this.pending);
+      this.pendingFrom = this.savedDoc;
       throw error;
     }
     this.base = makeBase(raw);

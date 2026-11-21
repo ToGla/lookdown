@@ -18,10 +18,16 @@ Tools (node, pnpm, rust) come from `mise.toml`.
 
 Use `pnpm run <script>` when checking whether a script exists: a bare `pnpm test` with no `test` script exits 0 silently.
 
+Open a file in dev with `pnpm tauri dev -- -- <absolute path>` (cargo runs in `src-tauri/`, so relative paths resolve there). A debug exe (`src-tauri/target/debug/lookdown.exe <path>`) loads its frontend from the Vite server on port 1420, so it works alongside a running `pnpm tauri dev`.
+
 ## Layout
 
 - `index.html`, `src/`: frontend (TypeScript, no UI framework), built by Vite into `dist/`
-- `src-tauri/`: Rust shell (`src/lib.rs` holds `run()`, `tauri.conf.json`, `capabilities/`, `icons/`)
+  - `src/file/codec.ts`: bytes ↔ text (UTF-8 only, BOM remembered)
+  - `src/file/lines.ts`: raw ↔ normalized line endings; `rebuild()` turns CodeMirror changes back into raw text, copying untouched stretches verbatim
+  - `src/document.ts`: `OpenDocument`, one open file (dirty state, queued saves)
+  - `src/editor.ts`, `src/native.ts`, `src/main.ts`: CodeMirror setup, typed `invoke` wrappers, wiring
+- `src-tauri/`: Rust shell (`src/lib.rs` holds `run()`, `src/files.rs` the file commands, `tauri.conf.json`, `capabilities/`, `icons/`)
 - `tests/fixtures/`: byte-exact test files (see Hard constraints)
 - `docs/superpowers/`: specs and plans
 

@@ -53,28 +53,28 @@ describe("OpenDocument", () => {
 
   test("saving an unedited document writes nothing", async () => {
     const s = session("mixed.md");
-    expect(s.doc.isDirty(s.state.doc)).toBe(false);
-    expect(await s.doc.save(s.state.doc, s.write)).toBe("clean");
+    expect(s.doc.isDirty()).toBe(false);
+    expect(await s.doc.save(s.write)).toBe("clean");
     expect(s.writes).toHaveLength(0);
   });
 
   test("an edit makes it dirty; saving writes exact bytes and makes it clean", async () => {
     const s = session("mixed.md");
     s.replace("another", "one more");
-    expect(s.doc.isDirty(s.state.doc)).toBe(true);
-    expect(await s.doc.save(s.state.doc, s.write)).toBe("saved");
+    expect(s.doc.isDirty()).toBe(true);
+    expect(await s.doc.save(s.write)).toBe("saved");
     const original = text(fixture("mixed.md"));
     expect(s.writes).toEqual([encode(original.replace("another", "one more"), false)]);
-    expect(s.doc.isDirty(s.state.doc)).toBe(false);
+    expect(s.doc.isDirty()).toBe(false);
   });
 
   test("deleting a line then undoing is clean and saves nothing", async () => {
     const s = session("mixed.md");
     s.replace("crlf line\n", "");
-    expect(s.doc.isDirty(s.state.doc)).toBe(true);
+    expect(s.doc.isDirty()).toBe(true);
     s.run(undo);
-    expect(s.doc.isDirty(s.state.doc)).toBe(false);
-    expect(await s.doc.save(s.state.doc, s.write)).toBe("clean");
+    expect(s.doc.isDirty()).toBe(false);
+    expect(await s.doc.save(s.write)).toBe("clean");
     expect(s.writes).toHaveLength(0);
   });
 
@@ -83,7 +83,7 @@ describe("OpenDocument", () => {
     s.replace("crlf line\n", "");
     s.run(undo);
     s.replace("end lf", "end LF");
-    await s.doc.save(s.state.doc, s.write);
+    await s.doc.save(s.write);
     const original = text(fixture("mixed.md"));
     expect(text(s.writes[0])).toBe(original.replace("end lf", "end LF"));
   });
@@ -91,9 +91,9 @@ describe("OpenDocument", () => {
   test("a second save applies only the second edit to the first save's output", async () => {
     const s = session("crlf.md");
     s.replace("Second", "2nd");
-    await s.doc.save(s.state.doc, s.write);
+    await s.doc.save(s.write);
     s.replace("Last", "Final\nline");
-    await s.doc.save(s.state.doc, s.write);
+    await s.doc.save(s.write);
     const first = text(s.writes[0]);
     expect(text(s.writes[1])).toBe(first.replace("Last", "Final\r\nline"));
   });
@@ -102,13 +102,13 @@ describe("OpenDocument", () => {
     const s = session("mixed.md");
     s.replace("lf line", "LF line");
     await expect(
-      s.doc.save(s.state.doc, async () => {
+      s.doc.save(async () => {
         throw new Error("disk full");
       }),
     ).rejects.toThrow("disk full");
-    expect(s.doc.isDirty(s.state.doc)).toBe(true);
+    expect(s.doc.isDirty()).toBe(true);
     s.replace("lone cr", "LONE CR");
-    await s.doc.save(s.state.doc, s.write);
+    await s.doc.save(s.write);
     const original = text(fixture("mixed.md"));
     expect(text(s.writes[0])).toBe(original.replace("lf line", "LF line").replace("lone cr", "LONE CR"));
   });
@@ -117,24 +117,43 @@ describe("OpenDocument", () => {
     const s = session("crlf.md");
     s.replace("Second", "2nd");
     let finish!: () => void;
-    const saving = s.doc.save(s.state.doc, (_p, bytes) => {
+    const saving = s.doc.save((_p, bytes) => {
       s.writes.push(bytes);
       return new Promise<void>((resolve) => (finish = resolve));
     });
     s.replace("Last", "Final");
     finish();
     await saving;
-    expect(s.doc.isDirty(s.state.doc)).toBe(true);
-    await s.doc.save(s.state.doc, s.write);
+    expect(s.doc.isDirty()).toBe(true);
+    await s.doc.save(s.write);
     const original = text(fixture("crlf.md"));
     expect(text(s.writes[0])).toBe(original.replace("Second", "2nd"));
     expect(text(s.writes[1])).toBe(original.replace("Second", "2nd").replace("Last", "Final"));
   });
 
+  test("a save started while another is writing waits, then writes the latest text", async () => {
+    const s = session("crlf.md");
+    s.replace("Second", "2nd");
+    let finish!: () => void;
+    const first = s.doc.save((_p, bytes) => {
+      s.writes.push(bytes);
+      return new Promise<void>((resolve) => (finish = resolve));
+    });
+    s.replace("Last", "Final");
+    const second = s.doc.save(s.write);
+    expect(s.writes).toHaveLength(1);
+    finish();
+    await first;
+    expect(await second).toBe("saved");
+    const original = text(fixture("crlf.md"));
+    expect(text(s.writes[1])).toBe(original.replace("Second", "2nd").replace("Last", "Final"));
+    expect(s.doc.isDirty()).toBe(false);
+  });
+
   test("a BOM file keeps its BOM after saving", async () => {
     const s = session("bom-crlf.md");
     s.replace("line", "text");
-    await s.doc.save(s.state.doc, s.write);
+    await s.doc.save(s.write);
     expect(Array.from(s.writes[0].subarray(0, 3))).toEqual([0xef, 0xbb, 0xbf]);
     expect(text(s.writes[0])).toBe("# BOM CRLF\r\ntext\r\n");
   });
