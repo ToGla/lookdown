@@ -46,6 +46,8 @@ export interface Tab {
   unreadable: Stamp | null;
   /** Saves started and not yet settled; disk checks skip the tab meanwhile. */
   saving: number;
+  /** Bumped when a save starts; a disk check spanning a save drops its result. */
+  saveGen: number;
   /** Saves run one after another, each with its own overwrite check. */
   saveChain: Promise<unknown>;
 }
@@ -243,6 +245,7 @@ export class App {
     if (!tab) return Promise.resolve(false);
     // Counted at once, so a disk check starting now already skips the tab.
     tab.saving++;
+    tab.saveGen++;
     const run = tab.saveChain.then(() => this.saveNow(tab));
     tab.saveChain = run;
     void run.finally(() => tab.saving--);
@@ -263,8 +266,8 @@ export class App {
         tab.pending = null;
         break;
       case "close":
-        this.workspace.remove(tab.id);
-        return this.sync();
+        // A deleted file's tab counts as unsaved: same prompt as Mod-w and ×.
+        return this.closeTab(tab.id);
       case "reload":
         await this.reloadDiscarding(tab);
         break;
@@ -294,9 +297,16 @@ export class App {
     const name = () => this.workspace.label(tab);
     try {
       if (!tab.doc.isDirty()) return true;
-      const now = await this.host.fileStamp(tab.path).catch(() => null);
+      let now: Stamp | null = null;
+      let unknown = false;
+      try {
+        now = await this.host.fileStamp(tab.path);
+      } catch {
+        // Not "missing": the disk state is unknown, so the user decides.
+        unknown = true;
+      }
       // A change the user accepted with Keep yours does not ask again.
-      if (needsOverwriteConfirm(tab.dismissed ?? tab.stamp, now)) {
+      if (unknown || needsOverwriteConfirm(tab.dismissed ?? tab.stamp, now)) {
         const answer = await this.host.ask(`${name()} changed on disk. Overwrite it?`, ["Overwrite", "Cancel"]);
         if (answer !== 0) return false;
       }
@@ -319,9 +329,11 @@ export class App {
 
   private async checkTab(tab: Tab): Promise<void> {
     if (tab.saving > 0) return;
+    const gen = tab.saveGen;
+    // A save started (and maybe finished) or the tab closed during an await.
+    const stale = () => tab.saving > 0 || tab.saveGen !== gen || !this.isOpen(tab);
     const now = await this.host.fileStamp(tab.path);
-    // A save started or the tab closed while the stamp was read.
-    if (tab.saving > 0 || !this.isOpen(tab)) return;
+    if (stale()) return;
     const action = diskAction(compareStamp(tab.stamp, now), tab.doc.isDirty(), tab.dismissed, now);
     switch (action) {
       case "none":
@@ -340,7 +352,7 @@ export class App {
       case "reload": {
         if (sameStamp(tab.unreadable, now)) return;
         const bytes = await this.host.readFile(tab.path);
-        if (tab.saving > 0 || !this.isOpen(tab) || tab.doc.isDirty()) return;
+        if (stale() || tab.doc.isDirty()) return;
         const result = tab.doc.reload(bytes);
         if ("busy" in result) return;
         if ("error" in result) {
@@ -479,6 +491,7 @@ export class App {
       pending: null,
       unreadable: null,
       saving: 0,
+      saveGen: 0,
       saveChain: Promise.resolve(),
     } as unknown as Tab;
     tab.state = this.tabState(tab, doc.initialText);

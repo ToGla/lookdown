@@ -724,13 +724,14 @@ describe("changes on disk", () => {
     expect(ui.model.bar?.message).toBe("a.md changed on disk.");
   });
 
-  test("Close tab on the deleted bar closes without a prompt", async () => {
+  test("Close tab on the deleted bar prompts like any unsaved tab", async () => {
     await app.openPaths(["/docs/a.md"]);
     host.deleteFile("/docs/a.md");
     await app.checkDisk();
+    host.answers = [1];
     await app.barAction("close");
     expect(app.tabs).toHaveLength(0);
-    expect(host.asked).toHaveLength(0);
+    expect(host.asked).toEqual([{ message: "Save changes to a.md?", buttons: ["Save", "Don't save", "Cancel"] }]);
   });
 
   test("a file that becomes undecodable shows the bar with the error instead of reloading", async () => {
@@ -771,5 +772,78 @@ describe("startup errors", () => {
     };
     await app.start();
     expect(ui.statusLine).toBe("Could not read startup files: no queue");
+  });
+});
+
+describe("fix round 1: close and save around disk changes", () => {
+  async function deletedWithEdits() {
+    await app.openPaths(["/docs/a.md"]);
+    edit();
+    host.deleteFile("/docs/a.md");
+    await app.checkDisk();
+  }
+
+  test("Close tab on the deleted bar of an edited tab asks; Cancel keeps it", async () => {
+    await deletedWithEdits();
+    host.answers = [2];
+    await app.barAction("close");
+    expect(host.asked).toEqual([{ message: "Save changes to a.md?", buttons: ["Save", "Don't save", "Cancel"] }]);
+    expect(paths()).toEqual(["/docs/a.md"]);
+  });
+
+  test("Close tab, Don't save: closes without writing", async () => {
+    await deletedWithEdits();
+    host.answers = [1];
+    await app.barAction("close");
+    expect(app.tabs).toHaveLength(0);
+    expect(host.writes).toHaveLength(0);
+  });
+
+  test("Close tab, Save: writes the file back, then closes", async () => {
+    await deletedWithEdits();
+    host.answers = [0];
+    await app.barAction("close");
+    expect(app.tabs).toHaveLength(0);
+    expect(host.text("/docs/a.md")).toBe("Xalpha\n");
+  });
+
+  test("a stamp read that fails before a save asks before overwriting", async () => {
+    await app.openPaths(["/docs/a.md"]);
+    edit();
+    host.fileStamp = async () => {
+      throw new Error("access denied");
+    };
+    host.answers = [1];
+    await app.run("save");
+    expect(host.asked).toEqual([{ message: "a.md changed on disk. Overwrite it?", buttons: ["Overwrite", "Cancel"] }]);
+    expect(host.writes).toHaveLength(0);
+  });
+
+  test("a poll whose read spans a whole save does not reload stale bytes", async () => {
+    await app.openPaths(["/docs/a.md"]);
+    host.setFile("/docs/a.md", "theirs\n");
+    const stale = host.files.get("/docs/a.md")!.slice();
+    let release: (() => void) | undefined;
+    let reached!: () => void;
+    const atRead = new Promise<void>((r) => (reached = r));
+    const realRead = host.readFile.bind(host);
+    host.readFile = (path: string) => {
+      if (path !== "/docs/a.md" || release) return realRead(path);
+      return new Promise<Uint8Array>((resolve) => {
+        release = () => resolve(stale);
+        reached();
+      });
+    };
+    const poll = app.checkDisk();
+    await atRead;
+    edit();
+    host.answers = [0];
+    expect(await app.run("save").then(() => true)).toBe(true);
+    expect(host.text("/docs/a.md")).toBe("Xalpha\n");
+    release!();
+    await poll;
+    expect(ui.view.state.doc.toString()).toBe("Xalpha\n");
+    expect(app.active!.doc.isDirty()).toBe(false);
+    expect(app.active!.stamp).toEqual(host.stamps.get("/docs/a.md"));
   });
 });
