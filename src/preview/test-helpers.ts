@@ -1,11 +1,10 @@
 import type { DecorationSet } from "@codemirror/view";
-import { EditorSelection, EditorState } from "@codemirror/state";
+import { EditorSelection, EditorState, type Extension } from "@codemirror/state";
 import { ensureSyntaxTree } from "@codemirror/language";
 import { markdownSupport } from "./markdown";
 import { rawTable } from "./table-model";
 import { enableReveal, revealEnabled } from "./reveal";
 import { imageExtensions } from "./images";
-import type { Extension } from "@codemirror/state";
 
 export function mdState(
   doc: string,

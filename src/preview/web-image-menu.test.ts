@@ -29,9 +29,12 @@ describe("loadWebImage", () => {
 
   it("is not undoable", () => {
     let s = mdState(DOC, { docPath: "C:/d/a.md", extensions: [history()] });
+    s = s.update({ changes: { from: DOC.length, insert: " tail" }, userEvent: "input" }).state;
     s = s.update({ effects: loadWebImage.of("https://e.com/x.png") }).state;
     let after = s;
-    undo({ state: s, dispatch: (tr) => (after = tr.state) });
+    const ran = undo({ state: s, dispatch: (tr) => (after = tr.state) });
+    expect(ran).toBe(true);
+    expect(after.doc.toString()).toBe(DOC);
     expect(widgets(after)[0].loaded).toBe(true);
   });
 
