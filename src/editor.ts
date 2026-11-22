@@ -9,7 +9,8 @@ import { type ImageIO, livePreview, markdownSupport } from "./preview";
 
 export interface TabStateOptions {
   onUpdate(u: ViewUpdate): void;
-  onSave(): void;
+  /** Bound to Mod-s inside the editor; the app shell handles Mod-s itself and omits it. */
+  onSave?(): void;
   openUrl(url: string): void;
   /** The open file's path; local images resolve against its directory. */
   docPath: string | null;
@@ -30,14 +31,18 @@ export function createTabState(text: string, opts: TabStateOptions): EditorState
       markdownSupport(),
       livePreview({ openUrl, docPath, imageIO }),
       keymap.of([
-        {
-          key: "Mod-s",
-          preventDefault: true,
-          run: () => {
-            onSave();
-            return true;
-          },
-        },
+        ...(onSave
+          ? [
+              {
+                key: "Mod-s",
+                preventDefault: true,
+                run: () => {
+                  onSave();
+                  return true;
+                },
+              },
+            ]
+          : []),
         ...defaultKeymap,
         ...historyKeymap,
       ]),

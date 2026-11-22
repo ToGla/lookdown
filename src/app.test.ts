@@ -1,6 +1,7 @@
 import { EditorState, StateEffect, type TransactionSpec } from "@codemirror/state";
 import { EditorView, type ViewUpdate } from "@codemirror/view";
-import { beforeEach, describe, expect, test } from "vitest";
+import { undo } from "@codemirror/commands";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import { App, type AppModel, type AppUi, type ViewPort, keyCommand } from "./app";
 import { FakeHost } from "./test-host";
@@ -85,6 +86,11 @@ beforeEach(() => {
   app = new App(host, ui);
 });
 
+afterEach(() => {
+  app.stop();
+  vi.useRealTimers();
+});
+
 const paths = () => app.tabs.map((t) => t.path);
 const activePath = () => app.active?.path ?? null;
 
@@ -93,7 +99,7 @@ describe("startup and the empty window", () => {
     await app.start();
     expect(app.tabs).toHaveLength(0);
     expect(host.title).toBe("lookdown");
-    expect(ui.model).toEqual({ tabs: [], activeId: null });
+    expect(ui.model).toEqual({ tabs: [], activeId: null, bar: null });
     expect(ui.views).toHaveLength(0);
   });
 
@@ -330,18 +336,12 @@ describe("closing", () => {
     expect(first.destroyed).toBe(true);
     expect(app.tabs).toHaveLength(0);
     expect(host.title).toBe("lookdown");
-    expect(ui.model).toEqual({ tabs: [], activeId: null });
+    expect(ui.model).toEqual({ tabs: [], activeId: null, bar: null });
     await app.openPaths(["/docs/b.md"]);
     expect(ui.views).toHaveLength(2);
     expect(ui.view.state.doc.toString()).toBe("bravo\n");
   });
 
-  test("a dirty tab is not closed (the prompt comes later)", async () => {
-    await app.openPaths(["/docs/a.md"]);
-    ui.view.dispatch({ changes: { from: 0, insert: "X" } });
-    await app.run("close");
-    expect(paths()).toEqual(["/docs/a.md"]);
-  });
 
   test("closing with no tab does nothing", async () => {
     await app.run("close");
@@ -354,7 +354,7 @@ describe("closing", () => {
     await app.openPaths(["/docs/a.md"]);
     expect(await host.requestClose()).toBe(true);
     ui.view.dispatch({ changes: { from: 0, insert: "X" } });
-    expect(await host.requestClose()).toBe(false);
+    expect(await host.requestClose()).toBe(false); // no answer scripted: Cancel
   });
 });
 
@@ -375,6 +375,12 @@ describe("keyCommand", () => {
     expect(keyCommand(key("o", { metaKey: true }), false)).toBeNull();
   });
 
+  test("Mod-s saves", () => {
+    expect(keyCommand(key("s", { ctrlKey: true }), false)).toBe("save");
+    expect(keyCommand(key("S", { ctrlKey: true }), false)).toBe("save");
+    expect(keyCommand(key("s", { metaKey: true }), true)).toBe("save");
+  });
+
   test("macOS uses Cmd for open and close", () => {
     expect(keyCommand(key("o", { metaKey: true }), true)).toBe("open");
     expect(keyCommand(key("w", { metaKey: true }), true)).toBe("close");
@@ -392,10 +398,378 @@ describe("keyCommand", () => {
 
   test("other keys and extra modifiers are left alone", () => {
     expect(keyCommand(key("o"), false)).toBeNull();
-    expect(keyCommand(key("s", { ctrlKey: true }), false)).toBeNull();
+    expect(keyCommand(key("s", { ctrlKey: true, shiftKey: true }), false)).toBeNull();
+    expect(keyCommand(key("s", { metaKey: true }), false)).toBeNull();
     expect(keyCommand(key("o", { ctrlKey: true, shiftKey: true }), false)).toBeNull();
     expect(keyCommand(key("o", { ctrlKey: true, altKey: true }), false)).toBeNull();
     expect(keyCommand(key("Tab"), false)).toBeNull();
     expect(keyCommand(key("PageDown"), false)).toBeNull();
+  });
+});
+
+const edit = (text = "X") => ui.view.dispatch({ changes: { from: 0, insert: text } });
+const markers = () => ui.model.tabs.map((t) => t.marker);
+
+describe("close prompts", () => {
+  test("closing a dirty tab asks; Cancel keeps it", async () => {
+    await app.openPaths(["/docs/a.md"]);
+    edit();
+    host.answers = [2];
+    await app.run("close");
+    expect(host.asked).toEqual([{ message: "Save changes to a.md?", buttons: ["Save", "Don't save", "Cancel"] }]);
+    expect(paths()).toEqual(["/docs/a.md"]);
+    expect(host.writes).toHaveLength(0);
+  });
+
+  test("Don't save closes without writing", async () => {
+    await app.openPaths(["/docs/a.md", "/docs/b.md"]);
+    edit();
+    host.answers = [1];
+    await app.run("close");
+    expect(paths()).toEqual(["/docs/a.md"]);
+    expect(host.writes).toHaveLength(0);
+    expect(host.text("/docs/b.md")).toBe("bravo\n");
+  });
+
+  test("Save writes, then closes", async () => {
+    await app.openPaths(["/docs/a.md"]);
+    edit();
+    host.answers = [0];
+    await app.run("close");
+    expect(app.tabs).toHaveLength(0);
+    expect(host.text("/docs/a.md")).toBe("Xalpha\n");
+  });
+
+  test("a failed Save keeps the tab open, active, with the error", async () => {
+    await app.openPaths(["/docs/a.md", "/docs/b.md"]);
+    app.select(app.tabs[0].id);
+    edit();
+    app.select(app.tabs[1].id);
+    host.writeErrors.set("/docs/a.md", "disk full");
+    host.answers = [0];
+    await app.closeTab(app.tabs[0].id);
+    expect(paths()).toEqual(["/docs/a.md", "/docs/b.md"]);
+    expect(activePath()).toBe("/docs/a.md");
+    expect(ui.statusLine).toContain("disk full");
+  });
+
+  test("a clean tab closes without asking", async () => {
+    await app.openPaths(["/docs/a.md"]);
+    await app.run("close");
+    expect(host.asked).toHaveLength(0);
+    expect(app.tabs).toHaveLength(0);
+  });
+});
+
+describe("window close prompt", () => {
+  test("lists every unsaved file, one per line", async () => {
+    await app.start();
+    await app.openPaths(["/docs/a.md", "/docs/b.md", "/docs/c.md"]);
+    app.select(app.tabs[0].id);
+    edit();
+    app.select(app.tabs[2].id);
+    edit();
+    host.answers = [2];
+    expect(await host.requestClose()).toBe(false);
+    expect(host.asked).toEqual([
+      { message: "Save changes to these files?\na.md\nc.md", buttons: ["Save all", "Discard all", "Cancel"] },
+    ]);
+  });
+
+  test("Discard all closes without writing; Save all writes every file", async () => {
+    await app.start();
+    await app.openPaths(["/docs/a.md", "/docs/b.md"]);
+    edit();
+    host.answers = [1];
+    expect(await host.requestClose()).toBe(true);
+    expect(host.writes).toHaveLength(0);
+    app.select(app.tabs[0].id);
+    edit("Y");
+    host.answers = [0];
+    expect(await host.requestClose()).toBe(true);
+    expect(host.text("/docs/a.md")).toBe("Yalpha\n");
+    expect(host.text("/docs/b.md")).toBe("Xbravo\n");
+  });
+
+  test("a failing save keeps the window open and activates that tab", async () => {
+    await app.start();
+    await app.openPaths(["/docs/a.md", "/docs/b.md"]);
+    app.select(app.tabs[0].id);
+    edit();
+    app.select(app.tabs[1].id);
+    edit();
+    host.writeErrors.set("/docs/a.md", "locked");
+    host.answers = [0];
+    expect(await host.requestClose()).toBe(false);
+    expect(activePath()).toBe("/docs/a.md");
+    expect(ui.statusLine).toContain("locked");
+  });
+
+  test("a throwing prompt keeps the window open", async () => {
+    await app.start();
+    await app.openPaths(["/docs/a.md"]);
+    edit();
+    host.ask = async () => {
+      throw new Error("dialog failed");
+    };
+    expect(await host.requestClose()).toBe(false);
+  });
+
+  test("Save all asks before overwriting a file changed on disk; Cancel there keeps the window open", async () => {
+    await app.start();
+    await app.openPaths(["/docs/a.md"]);
+    edit();
+    host.setFile("/docs/a.md", "theirs\n");
+    host.answers = [0, 1];
+    expect(await host.requestClose()).toBe(false);
+    expect(host.asked[1]).toEqual({ message: "a.md changed on disk. Overwrite it?", buttons: ["Overwrite", "Cancel"] });
+    expect(host.text("/docs/a.md")).toBe("theirs\n");
+  });
+});
+
+describe("saving", () => {
+  test("Mod-s is an app command; with no tab it does nothing", async () => {
+    await app.run("save");
+    expect(host.writes).toHaveLength(0);
+    await app.openPaths(["/docs/a.md"]);
+    edit();
+    await app.run("save");
+    expect(host.text("/docs/a.md")).toBe("Xalpha\n");
+  });
+
+  test("a file changed after the last poll asks before writing; Cancel writes nothing", async () => {
+    await app.openPaths(["/docs/a.md"]);
+    edit();
+    host.setFile("/docs/a.md", "theirs\n");
+    host.answers = [1];
+    await app.run("save");
+    expect(host.asked).toEqual([{ message: "a.md changed on disk. Overwrite it?", buttons: ["Overwrite", "Cancel"] }]);
+    expect(host.writes).toHaveLength(0);
+    expect(app.active!.doc.isDirty()).toBe(true);
+  });
+
+  test("Overwrite writes and records the new stamp", async () => {
+    await app.openPaths(["/docs/a.md"]);
+    edit();
+    host.setFile("/docs/a.md", "theirs\n");
+    host.answers = [0];
+    await app.run("save");
+    expect(host.text("/docs/a.md")).toBe("Xalpha\n");
+    expect(app.active!.stamp).toEqual(host.stamps.get("/docs/a.md"));
+  });
+
+  test("lookdown's own save does not show the bar on the next poll", async () => {
+    await app.openPaths(["/docs/a.md"]);
+    edit();
+    await app.run("save");
+    edit("Y");
+    await app.checkDisk();
+    expect(ui.model.bar).toBeNull();
+    expect(ui.view.state.doc.toString()).toBe("YXalpha\n");
+    expect(host.asked).toHaveLength(0);
+  });
+
+  test("a poll racing a save skips the tab", async () => {
+    await app.openPaths(["/docs/a.md"]);
+    edit();
+    const saving = app.run("save");
+    await app.checkDisk();
+    await saving;
+    await app.checkDisk();
+    expect(ui.model.bar).toBeNull();
+    expect(app.active!.doc.isDirty()).toBe(false);
+  });
+
+  test("saving a deleted file writes it back without asking", async () => {
+    await app.openPaths(["/docs/a.md"]);
+    host.deleteFile("/docs/a.md");
+    await app.checkDisk();
+    await app.run("save");
+    expect(host.asked).toHaveLength(0);
+    expect(host.text("/docs/a.md")).toBe("alpha\n");
+    expect(app.active!.doc.isDirty()).toBe(false);
+    expect(ui.model.bar).toBeNull();
+  });
+});
+
+describe("changes on disk", () => {
+  test("a clean inactive tab reloads on the next poll and shows the new text when activated", async () => {
+    await app.openPaths(["/docs/a.md", "/docs/b.md"]);
+    const a = app.tabs[0];
+    host.setFile("/docs/a.md", "alpha two\n");
+    await app.checkDisk();
+    expect(markers()).toEqual(["", ""]);
+    app.select(a.id);
+    expect(ui.view.state.doc.toString()).toBe("alpha two\n");
+    expect(a.doc.isDirty()).toBe(false);
+    expect(a.stamp).toEqual(host.stamps.get("/docs/a.md"));
+    let state = ui.view.state;
+    undo({ state, dispatch: (tr) => (state = tr.state) });
+    expect(state.doc.toString()).toBe("alpha two\n");
+  });
+
+  test("a clean active tab reloads in the view and keeps the cursor", async () => {
+    await app.openPaths(["/docs/a.md"]);
+    ui.view.dispatch({ selection: { anchor: 5 } });
+    const view = ui.view;
+    host.setFile("/docs/a.md", "alpha!\n");
+    await app.checkDisk();
+    expect(view.state.doc.toString()).toBe("alpha!\n");
+    expect(view.state.selection.main.head).toBe(5);
+    expect(app.active!.doc.isDirty()).toBe(false);
+    expect(host.title).toBe("a.md — lookdown");
+    expect(ui.views).toHaveLength(1);
+  });
+
+  test("a dirty active tab shows the changed bar and is not reloaded", async () => {
+    await app.openPaths(["/docs/a.md"]);
+    edit();
+    host.setFile("/docs/a.md", "theirs\n");
+    await app.checkDisk();
+    expect(ui.view.state.doc.toString()).toBe("Xalpha\n");
+    expect(ui.model.bar).toEqual({
+      message: "a.md changed on disk.",
+      error: "",
+      actions: [
+        { label: "Reload (discard your changes)", action: "reload" },
+        { label: "Keep yours", action: "keep-yours" },
+      ],
+    });
+  });
+
+  test("a dirty inactive tab gets the ! marker; the bar shows when it becomes active", async () => {
+    await app.openPaths(["/docs/a.md", "/docs/b.md"]);
+    app.select(app.tabs[0].id);
+    edit();
+    app.select(app.tabs[1].id);
+    host.setFile("/docs/a.md", "theirs\n");
+    await app.checkDisk();
+    expect(markers()).toEqual(["!", ""]);
+    expect(ui.model.bar).toBeNull();
+    app.select(app.tabs[0].id);
+    expect(ui.model.bar?.message).toBe("a.md changed on disk.");
+    expect(markers()).toEqual(["•", ""]);
+    expect(ui.view.state.doc.toString()).toBe("Xalpha\n");
+  });
+
+  test("Keep yours hides the bar until the file changes again, and the next save overwrites without asking", async () => {
+    await app.openPaths(["/docs/a.md"]);
+    edit();
+    host.setFile("/docs/a.md", "theirs\n");
+    await app.checkDisk();
+    await app.barAction("keep-yours");
+    expect(ui.model.bar).toBeNull();
+    await app.checkDisk();
+    expect(ui.model.bar).toBeNull();
+    host.setFile("/docs/a.md", "theirs again\n");
+    await app.checkDisk();
+    expect(ui.model.bar?.message).toBe("a.md changed on disk.");
+    await app.barAction("keep-yours");
+    await app.run("save");
+    expect(host.asked).toHaveLength(0);
+    expect(host.text("/docs/a.md")).toBe("Xalpha\n");
+    expect(app.active!.dismissed).toBeNull();
+  });
+
+  test("Reload (discard your changes) loads the disk text in a fresh state", async () => {
+    await app.openPaths(["/docs/a.md"]);
+    edit();
+    host.setFile("/docs/a.md", "theirs\n");
+    await app.checkDisk();
+    await app.barAction("reload");
+    expect(ui.model.bar).toBeNull();
+    expect(ui.view.state.doc.toString()).toBe("theirs\n");
+    expect(app.active!.doc.isDirty()).toBe(false);
+    let state = ui.view.state;
+    undo({ state, dispatch: (tr) => (state = tr.state) });
+    expect(state.doc.toString()).toBe("theirs\n");
+    // Edits still reach the document after the state was replaced.
+    edit("Z");
+    expect(app.active!.doc.isDirty()).toBe(true);
+    await app.run("save");
+    expect(host.text("/docs/a.md")).toBe("Ztheirs\n");
+  });
+
+  test("a deleted file marks the tab dirty and shows the deleted bar once", async () => {
+    await app.openPaths(["/docs/a.md"]);
+    host.deleteFile("/docs/a.md");
+    await app.checkDisk();
+    const tab = app.active!;
+    expect(tab.doc.isDirty()).toBe(true);
+    expect(tab.stamp).toBeNull();
+    expect(host.title).toBe("• a.md — lookdown");
+    expect(ui.model.bar).toEqual({
+      message: "a.md was deleted or moved.",
+      error: "",
+      actions: [
+        { label: "Close tab", action: "close" },
+        { label: "Keep", action: "keep" },
+      ],
+    });
+    await app.barAction("keep");
+    expect(ui.model.bar).toBeNull();
+    await app.checkDisk();
+    expect(ui.model.bar).toBeNull();
+    expect(tab.doc.isDirty()).toBe(true);
+    expect(ui.view.state.doc.toString()).toBe("alpha\n");
+  });
+
+  test("a deleted file that comes back is treated as a change", async () => {
+    await app.openPaths(["/docs/a.md"]);
+    host.deleteFile("/docs/a.md");
+    await app.checkDisk();
+    await app.barAction("keep");
+    host.setFile("/docs/a.md", "back\n");
+    await app.checkDisk();
+    expect(ui.model.bar?.message).toBe("a.md changed on disk.");
+  });
+
+  test("Close tab on the deleted bar closes without a prompt", async () => {
+    await app.openPaths(["/docs/a.md"]);
+    host.deleteFile("/docs/a.md");
+    await app.checkDisk();
+    await app.barAction("close");
+    expect(app.tabs).toHaveLength(0);
+    expect(host.asked).toHaveLength(0);
+  });
+
+  test("a file that becomes undecodable shows the bar with the error instead of reloading", async () => {
+    await app.openPaths(["/docs/a.md"]);
+    host.setFile("/docs/a.md", new Uint8Array([0x61, 0xff]));
+    await app.checkDisk();
+    expect(ui.view.state.doc.toString()).toBe("alpha\n");
+    expect(ui.model.bar?.message).toBe("a.md changed on disk.");
+    expect(ui.model.bar?.error).not.toBe("");
+  });
+
+  test("one check at a time: a check while one runs is skipped", async () => {
+    await app.openPaths(["/docs/a.md"]);
+    const spy = vi.spyOn(host, "fileStamp");
+    await Promise.all([app.checkDisk(), app.checkDisk()]);
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  test("polls every 2 seconds and on focus, and stops with stop()", async () => {
+    vi.useFakeTimers();
+    await app.start();
+    const spy = vi.spyOn(app, "checkDisk");
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(spy).toHaveBeenCalledTimes(1);
+    host.focus();
+    expect(spy).toHaveBeenCalledTimes(2);
+    app.stop();
+    await vi.advanceTimersByTimeAsync(4000);
+    host.focus();
+    expect(spy).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("startup errors", () => {
+  test("a failing startup queue shows the error in the status line", async () => {
+    host.takePaths = async () => {
+      throw new Error("no queue");
+    };
+    await app.start();
+    expect(ui.statusLine).toBe("Could not read startup files: no queue");
   });
 });

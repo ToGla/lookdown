@@ -7,10 +7,15 @@
 //   __devHost.read(path)              a fake file's text
 //   __devHost.edit(path, text)        change (or create) a file "on disk"
 //   __devHost.remove(path)            delete a file "on disk"
-//   __devHost.focus()                 fire the window-focus event
+//   __devHost.focus()                 fire the window-focus event (checks files on disk now;
+//                                     they are also checked every 2 s)
 //   __devHost.queue(...paths)         a second launch with these paths
 //   __devHost.drop(...paths)          drop these files on the window
 //   __devHost.requestClose()          the window's close button; resolves true if it would close
+//   __devHost.failWrites(path, msg)   make saves of path fail with msg (msg "" to stop)
+//
+// Prompts (close, window close, overwrite) show as a small in-page dialog;
+// Escape picks the last button (Cancel). The disk bar shows above the editor.
 //   __devHost.host                    the FakeHost itself (titles, writes, asked, ...)
 
 import { startApp } from "../src/app";
@@ -128,6 +133,7 @@ const devHost = {
   queue: (...paths: string[]) => host.queuePaths(...paths),
   drop: (...paths: string[]) => host.dropFiles(...paths),
   requestClose: () => host.requestClose(),
+  failWrites: (path: string, msg: string) => (msg ? host.writeErrors.set(path, msg) : host.writeErrors.delete(path)),
 };
 (window as unknown as { __devHost: typeof devHost }).__devHost = devHost;
 
