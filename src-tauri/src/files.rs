@@ -76,7 +76,8 @@ pub fn write_file(path: String, contents: Vec<u8>) -> Result<(), String> {
     write_bytes(Path::new(&path), &contents)
 }
 
-/// Refuses UNC and device paths for `file_size` (and so image loads): on Windows
+/// Refuses UNC and device paths for `file_size` (and so image loads; not for
+/// `file_stamp`, see there): on Windows
 /// merely touching one opens an SMB connection that sends the user's
 /// credentials. Rejects paths starting with two separators (any mix of `/`
 /// and `\`: `//host`, `\\?\`, `\\.\`) and paths containing `?` or `*` (the NT
@@ -111,9 +112,15 @@ pub struct Stamp {
 
 /// `Ok(None)` when the file does not exist. `modified_ms` is 0 when the
 /// platform cannot report a modification time (the size still differs).
+///
+/// Unlike `file_size`, not gated by `check_local`: it only ever receives the
+/// paths of documents the user opened (arguments, drop, open dialog), never
+/// paths taken from document content, and `read_file` already reads those.
+/// Refusing UNC paths here would break change detection and save checks for
+/// documents on a network share. `file_size` stays guarded because image
+/// paths come from the Markdown text.
 #[tauri::command(async)]
 pub fn file_stamp(path: String) -> Result<Option<Stamp>, String> {
-    check_local(&path)?;
     let path = Path::new(&path);
     match std::fs::metadata(path) {
         Ok(m) => {
@@ -212,9 +219,19 @@ mod tests {
         assert!(file_stamp(path.to_string_lossy().into_owned()).unwrap().is_none());
     }
 
+    /// `file_stamp` takes the paths of documents the user opened, which may sit
+    /// on a share: a path starting with two separators is stamped, not refused.
+    /// A local temp file reached that way (`\\?\` verbatim on Windows, `//` on
+    /// Unix) shows it without touching the network.
     #[test]
-    fn file_stamp_refuses_unc_paths() {
-        assert!(file_stamp("//h/s".to_string()).is_err());
+    fn file_stamp_accepts_paths_starting_with_two_separators() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("s.md");
+        write_bytes(&path, b"abcd").unwrap();
+        let plain = path.to_string_lossy().into_owned();
+        let doubled = if cfg!(windows) { format!(r"\\?\{plain}") } else { format!("/{plain}") };
+        let stamp = file_stamp(doubled).unwrap().unwrap();
+        assert_eq!(stamp.size, 4);
     }
 
     #[test]
