@@ -1,6 +1,5 @@
-import { EditorSelection } from "@codemirror/state";
 import { undo } from "@codemirror/commands";
-import { EditorState } from "@codemirror/state";
+import { EditorSelection, EditorState } from "@codemirror/state";
 import { describe, expect, test } from "vitest";
 import { createTabState, reloadTransaction } from "./editor";
 
@@ -31,5 +30,10 @@ describe("reloadTransaction", () => {
   test("equal text yields no changes", () => {
     const state = EditorState.create({ doc: "same" });
     expect(state.update(reloadTransaction(state, "same")).docChanged).toBe(false);
+  });
+
+  test("overlapping prefix and suffix still yields the new text", () => {
+    const state = EditorState.create({ doc: "aa" });
+    expect(state.update(reloadTransaction(state, "aaa")).state.doc.toString()).toBe("aaa");
   });
 });

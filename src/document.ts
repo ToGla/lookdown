@@ -56,26 +56,20 @@ export class OpenDocument {
 
   /**
    * Replace the document with new on-disk bytes (the editor is loaded with the
-   * returned text via a reload-annotated transaction). If a save is running, the
-   * replacement is applied after it settles so the save cannot overwrite it.
+   * returned text via a reload-annotated transaction). Refused with `busy`
+   * while a save is running, changing nothing: the caller retries later.
    */
-  reload(bytes: Uint8Array): { text: string } | { error: string } {
+  reload(bytes: Uint8Array): { text: string } | { error: string } | { busy: true } {
+    if (this.running) return { busy: true };
     const result = decode(bytes);
     if (!result.ok) return { error: result.error };
-    const apply = () => {
-      this.base = makeBase(result.text);
-      this.bom = result.bom;
-      this.savedDoc = Text.of(normalized(this.base).split("\n"));
-      this.current = this.savedDoc;
-      this.pendingFrom = this.savedDoc;
-      this.pending = ChangeSet.empty(this.savedDoc.length);
-      this.isMissing = false;
-    };
-    if (this.running) {
-      void this.running.then(apply);
-      return { text: Text.of(normalized(makeBase(result.text)).split("\n")).toString() };
-    }
-    apply();
+    this.base = makeBase(result.text);
+    this.bom = result.bom;
+    this.savedDoc = Text.of(normalized(this.base).split("\n"));
+    this.current = this.savedDoc;
+    this.pendingFrom = this.savedDoc;
+    this.pending = ChangeSet.empty(this.savedDoc.length);
+    this.isMissing = false;
     return { text: this.savedDoc.toString() };
   }
 

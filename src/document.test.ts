@@ -1,7 +1,8 @@
 import { history, undo } from "@codemirror/commands";
 import { EditorState, type StateCommand, type TransactionSpec } from "@codemirror/state";
 import { describe, expect, test } from "vitest";
-import { OpenDocument, basename, reloadAnnotation, windowTitle } from "./document";
+import { OpenDocument, basename, windowTitle } from "./document";
+import { reloadTransaction } from "./editor";
 import { decode, encode } from "./file/codec";
 import { fixture } from "./test/fixtures";
 
@@ -180,14 +181,12 @@ describe("reload and missing", () => {
   test("reloading a clean CRLF document uses the new text and keeps CRLF on save", async () => {
     const s = session("crlf.md");
     const r = s.doc.reload(bytes("one\r\ntwo\r\n"));
+    if (!("text" in r)) throw new Error("reload failed");
     expect(r).toEqual({ text: "one\ntwo\n" });
     expect(s.doc.initialText).toBe("one\ntwo\n");
     expect(s.doc.isDirty()).toBe(false);
     // Load the reloaded text into the editor the way the app does.
-    s.apply({
-      changes: { from: 0, to: s.state.doc.length, insert: "one\ntwo\n" },
-      annotations: reloadAnnotation.of(true),
-    });
+    s.apply(reloadTransaction(s.state, r.text));
     s.replace("two", "2\nx");
     await s.doc.save(s.write);
     expect(text(s.writes[0])).toBe("one\r\n2\r\nx\r\n");
@@ -225,22 +224,31 @@ describe("reload and missing", () => {
     expect(s.doc.isDirty()).toBe(false);
   });
 
-  test("track ignores a reload-annotated transaction", () => {
+  test("track ignores the reload transaction, so a later keystroke saves reloaded bytes plus it", async () => {
     const s = session("crlf.md");
-    s.apply({ changes: { from: 0, insert: "zzz" }, annotations: reloadAnnotation.of(true) });
+    const r = s.doc.reload(bytes("one\r\ntwo\r\n"));
+    if (!("text" in r)) throw new Error("reload failed");
+    s.apply(reloadTransaction(s.state, r.text));
+    expect(s.state.doc.toString()).toBe("one\ntwo\n");
     expect(s.doc.isDirty()).toBe(false);
+    s.apply({ changes: { from: 3, insert: "X" } });
+    expect(s.doc.isDirty()).toBe(true);
+    await s.doc.save(s.write);
+    expect(text(s.writes[0])).toBe("oneX\r\ntwo\r\n");
   });
 
-  test("a reload during a running save is applied after the save settles", async () => {
+  test("reload during a running save is refused; it works once the save settles", async () => {
     const s = session("crlf.md");
     s.replace("Second", "2nd");
     let finish!: () => void;
     const saving = s.doc.save(() => new Promise<void>((resolve) => (finish = resolve)));
-    expect(s.doc.reload(bytes("fresh\r\n"))).toEqual({ text: "fresh\n" });
+    const before = s.doc.initialText;
+    expect(s.doc.reload(bytes("fresh\r\n"))).toEqual({ busy: true });
+    expect(s.doc.initialText).toBe(before);
     finish();
     await saving;
-    await Promise.resolve();
-    expect(s.doc.initialText).toBe("fresh\n");
+    await new Promise((resolve) => setTimeout(resolve));
+    expect(s.doc.reload(bytes("fresh\r\n"))).toEqual({ text: "fresh\n" });
     expect(s.doc.isDirty()).toBe(false);
   });
 });
