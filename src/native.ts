@@ -15,6 +15,11 @@ export function onPathsQueued(cb: () => void): Promise<() => void> {
   return listen("paths-queued", () => cb());
 }
 
+/** Calls back with the payload of each `menu-command` event (macOS menu bar). */
+export function onMenuCommand(cb: (payload: unknown) => void): Promise<() => void> {
+  return listen<unknown>("menu-command", (event) => cb(event.payload));
+}
+
 export async function readFile(path: string): Promise<Uint8Array> {
   return new Uint8Array(await invoke<ArrayBuffer>("read_file", { path }));
 }

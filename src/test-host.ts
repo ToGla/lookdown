@@ -36,6 +36,7 @@ export class FakeHost implements Host {
   private dropListeners: ((paths: string[]) => void)[] = [];
   private focusListeners: (() => void)[] = [];
   private closeListeners: (() => Promise<boolean>)[] = [];
+  private menuListeners: ((payload: unknown) => void)[] = [];
 
   get title(): string | undefined {
     return this.titles[this.titles.length - 1];
@@ -72,6 +73,11 @@ export class FakeHost implements Host {
 
   focus(): void {
     for (const cb of this.focusListeners) cb();
+  }
+
+  /** Simulate a macOS menu item sending `payload`. */
+  menu(payload: unknown): void {
+    for (const cb of this.menuListeners) cb(payload);
   }
 
   /** Simulate the window's close button; true when the window may close. */
@@ -148,5 +154,9 @@ export class FakeHost implements Host {
 
   onFocus(cb: () => void): void {
     this.focusListeners.push(cb);
+  }
+
+  onMenuCommand(cb: (payload: unknown) => void): void {
+    this.menuListeners.push(cb);
   }
 }

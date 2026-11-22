@@ -29,6 +29,8 @@ export interface Host {
   /** Resolve true to let the window close. */
   onCloseRequested(cb: () => Promise<boolean>): void;
   onFocus(cb: () => void): void;
+  /** macOS menu bar items; the payload is a command name, checked by the caller. */
+  onMenuCommand(cb: (payload: unknown) => void): void;
 }
 
 export const OPEN_FILTERS = [
@@ -101,6 +103,9 @@ export function tauriHost(): Host {
         }
         if (!close) event.preventDefault();
       });
+    },
+    onMenuCommand(cb) {
+      void native.onMenuCommand(cb);
     },
     onFocus(cb) {
       void getCurrentWindow().onFocusChanged(({ payload: focused }) => {

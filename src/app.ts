@@ -3,6 +3,7 @@
 // `App` is the controller (no DOM, unit-tested with a fake host and stub view);
 // `startApp` connects it to the page.
 
+import { redo, undo } from "@codemirror/commands";
 import type { EditorState, StateEffect, TransactionSpec } from "@codemirror/state";
 
 import { OpenDocument } from "./document";
@@ -58,6 +59,9 @@ export interface Tab {
 export interface ViewPort {
   readonly state: EditorState;
   setState(state: EditorState): void;
+  /** CodeMirror's history undo / redo on the shown state. */
+  undo(): void;
+  redo(): void;
   dispatch(spec: TransactionSpec): void;
   scrollSnapshot(): StateEffect<unknown>;
   restoreScroll(snapshot: StateEffect<unknown>): void;
@@ -81,8 +85,14 @@ export interface AppUi {
   setUnsaved(unsaved: boolean): void;
 }
 
-/** Frontend commands; a later menu bar calls the same ones. */
-export type Command = "open" | "close" | "next" | "previous" | "save";
+const COMMANDS = ["open", "close", "next", "previous", "save", "undo", "redo"] as const;
+
+/** Frontend commands, run by window-level keys and the macOS menu bar. */
+export type Command = (typeof COMMANDS)[number];
+
+export function isCommand(value: unknown): value is Command {
+  return typeof value === "string" && (COMMANDS as readonly string[]).includes(value);
+}
 
 export interface KeyLike {
   key: string;
@@ -172,6 +182,9 @@ export class App {
     this.host.onPathsQueued(() => void this.drain());
     this.host.onFilesDropped((paths) => void this.openPaths(paths));
     this.host.onCloseRequested(() => this.confirmWindowClose());
+    this.host.onMenuCommand((payload) => {
+      if (isCommand(payload)) void this.run(payload);
+    });
     this.host.onFocus(() => {
       if (this.stopped) return;
       this.retryImages();
@@ -229,6 +242,12 @@ export class App {
         return this.sync();
       case "save":
         await this.save();
+        return;
+      case "undo":
+        if (this.shown) this.view?.undo();
+        return;
+      case "redo":
+        if (this.shown) this.view?.redo();
         return;
     }
   }
@@ -638,6 +657,8 @@ function editorPort(parent: HTMLElement, state: EditorState): ViewPort {
       return view.state;
     },
     setState: (s) => view.setState(s),
+    undo: () => void undo(view),
+    redo: () => void redo(view),
     dispatch: (spec) => view.dispatch(spec),
     scrollSnapshot: () => view.scrollSnapshot(),
     restoreScroll: (snapshot) => view.dispatch({ effects: snapshot }),

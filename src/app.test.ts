@@ -1,9 +1,9 @@
-import { EditorState, StateEffect, type TransactionSpec } from "@codemirror/state";
+import { EditorState, StateEffect, type Transaction, type TransactionSpec } from "@codemirror/state";
 import { EditorView, type ViewUpdate } from "@codemirror/view";
-import { undo } from "@codemirror/commands";
+import { redo, undo } from "@codemirror/commands";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
-import { App, type AppModel, type AppUi, type ViewPort, isReloadKey, keyCommand } from "./app";
+import { App, type AppModel, type AppUi, type ViewPort, isCommand, isReloadKey, keyCommand } from "./app";
 import { previewConfig } from "./preview/images";
 import { closeMenu } from "./preview/popup-menu";
 import { FakeHost } from "./test-host";
@@ -43,9 +43,17 @@ class StubView implements ViewPort {
   destroy(): void {
     this.destroyed = true;
   }
+  undo(): void {
+    undo({ state: this.state, dispatch: (tr) => this.apply(tr) });
+  }
+  redo(): void {
+    redo({ state: this.state, dispatch: (tr) => this.apply(tr) });
+  }
   /** Apply a transaction like EditorView.dispatch does, calling the update listeners. */
   dispatch(spec: TransactionSpec): void {
-    const tr = this.state.update(spec);
+    this.apply(this.state.update(spec));
+  }
+  private apply(tr: Transaction): void {
     this.state = tr.state;
     const update = { transactions: [tr], docChanged: tr.docChanged, state: tr.state, startState: tr.startState };
     for (const listener of tr.startState.facet(EditorView.updateListener)) listener(update as unknown as ViewUpdate);
@@ -368,6 +376,55 @@ describe("closing", () => {
     expect(await host.requestClose()).toBe(true);
     ui.view.dispatch({ changes: { from: 0, insert: "X" } });
     expect(await host.requestClose()).toBe(false); // no answer scripted: Cancel
+  });
+});
+
+describe("menu commands", () => {
+  test("runs a menu command like the keyboard does", async () => {
+    await app.start();
+    await app.openPaths(["/docs/a.md"]);
+    host.menu("close");
+    await app.idle();
+    await Promise.resolve();
+    expect(app.tabs).toHaveLength(0);
+  });
+
+  test("ignores unknown menu commands", async () => {
+    await app.start();
+    await app.openPaths(["/docs/a.md"]);
+    host.menu("explode");
+    host.menu(42);
+    host.menu(undefined);
+    await app.idle();
+    expect(app.tabs).toHaveLength(1);
+    expect(ui.statusLine).toBe("");
+  });
+
+  test("undo and redo act on the shown tab's editor", async () => {
+    await app.openPaths(["/docs/a.md", "/docs/b.md"]);
+    app.select(app.tabs[0].id);
+    ui.view.dispatch({ changes: { from: 0, insert: "X" } });
+    await app.run("undo");
+    expect(ui.view.state.doc.toString()).toBe("alpha\n");
+    expect(app.tabs[0].doc.isDirty()).toBe(false);
+    await app.run("redo");
+    expect(ui.view.state.doc.toString()).toBe("Xalpha\n");
+    expect(app.tabs[0].doc.isDirty()).toBe(true);
+  });
+
+  test("menu commands without a tab do nothing", async () => {
+    await app.start();
+    for (const c of ["save", "close", "undo", "redo", "next", "previous"] as const) await app.run(c);
+    expect(ui.statusLine).toBe("");
+    expect(host.writes).toHaveLength(0);
+    expect(app.tabs).toHaveLength(0);
+  });
+
+  test("isCommand accepts exactly the commands", () => {
+    expect(["open", "close", "next", "previous", "save", "undo", "redo"].every(isCommand)).toBe(true);
+    expect(isCommand("quit")).toBe(false);
+    expect(isCommand(undefined)).toBe(false);
+    expect(isCommand(1)).toBe(false);
   });
 });
 
