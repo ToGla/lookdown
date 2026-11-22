@@ -64,10 +64,22 @@ mod tests {
     fn app_identity_matches_spec() {
         let c = conf();
         assert_eq!(c["productName"], "lookdown");
-        assert_eq!(c["identifier"], "com.lookdown.app");
+        assert_eq!(c["identifier"], "io.github.togla.lookdown");
         let windows = c["app"]["windows"].as_array().unwrap();
         assert_eq!(windows.len(), 1);
         assert_eq!(windows[0]["title"], "lookdown");
+    }
+
+    #[test]
+    fn version_comes_from_package_json() {
+        assert_eq!(conf()["version"], "../package.json");
+    }
+
+    #[test]
+    fn cargo_version_matches_package_json() {
+        let pkg: Value = serde_json::from_str(include_str!("../../package.json")).unwrap();
+        let m: toml::Table = include_str!("../Cargo.toml").parse().unwrap();
+        assert_eq!(m["package"]["version"].as_str(), pkg["version"].as_str());
     }
 
     #[test]
