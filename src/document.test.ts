@@ -1,7 +1,7 @@
 import { history, undo } from "@codemirror/commands";
 import { EditorState, type StateCommand, type TransactionSpec } from "@codemirror/state";
 import { describe, expect, test } from "vitest";
-import { OpenDocument, basename, windowTitle } from "./document";
+import { OpenDocument, basename, reloadAnnotation, windowTitle } from "./document";
 import { decode, encode } from "./file/codec";
 import { fixture } from "./test/fixtures";
 
@@ -171,6 +171,77 @@ describe("OpenDocument", () => {
     await s.doc.save(s.write);
     expect(Array.from(s.writes[0].subarray(0, 3))).toEqual([0xef, 0xbb, 0xbf]);
     expect(text(s.writes[0])).toBe("# BOM CRLF\r\ntext\r\n");
+  });
+});
+
+describe("reload and missing", () => {
+  const bytes = (t: string) => new TextEncoder().encode(t);
+
+  test("reloading a clean CRLF document uses the new text and keeps CRLF on save", async () => {
+    const s = session("crlf.md");
+    const r = s.doc.reload(bytes("one\r\ntwo\r\n"));
+    expect(r).toEqual({ text: "one\ntwo\n" });
+    expect(s.doc.initialText).toBe("one\ntwo\n");
+    expect(s.doc.isDirty()).toBe(false);
+    // Load the reloaded text into the editor the way the app does.
+    s.apply({
+      changes: { from: 0, to: s.state.doc.length, insert: "one\ntwo\n" },
+      annotations: reloadAnnotation.of(true),
+    });
+    s.replace("two", "2\nx");
+    await s.doc.save(s.write);
+    expect(text(s.writes[0])).toBe("one\r\n2\r\nx\r\n");
+  });
+
+  test("reload with invalid UTF-8 errors and leaves the document unchanged", () => {
+    const s = session("mixed.md");
+    s.replace("lf line", "LF line");
+    const before = s.doc.initialText;
+    expect(s.doc.reload(fixture("invalid-utf8.md"))).toEqual({
+      error: "lookdown only opens UTF-8 files",
+    });
+    expect(s.doc.initialText).toBe(before);
+    expect(s.doc.isDirty()).toBe(true);
+  });
+
+  test("markMissing makes it dirty without touching text; save clears it", async () => {
+    const s = session("mixed.md");
+    const before = s.doc.initialText;
+    s.doc.markMissing();
+    expect(s.doc.missing).toBe(true);
+    expect(s.doc.isDirty()).toBe(true);
+    expect(s.doc.initialText).toBe(before);
+    expect(await s.doc.save(s.write)).toBe("saved");
+    expect(s.writes[0]).toEqual(fixture("mixed.md"));
+    expect(s.doc.missing).toBe(false);
+    expect(s.doc.isDirty()).toBe(false);
+  });
+
+  test("reload clears missing", () => {
+    const s = session("mixed.md");
+    s.doc.markMissing();
+    s.doc.reload(bytes("new\n"));
+    expect(s.doc.missing).toBe(false);
+    expect(s.doc.isDirty()).toBe(false);
+  });
+
+  test("track ignores a reload-annotated transaction", () => {
+    const s = session("crlf.md");
+    s.apply({ changes: { from: 0, insert: "zzz" }, annotations: reloadAnnotation.of(true) });
+    expect(s.doc.isDirty()).toBe(false);
+  });
+
+  test("a reload during a running save is applied after the save settles", async () => {
+    const s = session("crlf.md");
+    s.replace("Second", "2nd");
+    let finish!: () => void;
+    const saving = s.doc.save(() => new Promise<void>((resolve) => (finish = resolve)));
+    expect(s.doc.reload(bytes("fresh\r\n"))).toEqual({ text: "fresh\n" });
+    finish();
+    await saving;
+    await Promise.resolve();
+    expect(s.doc.initialText).toBe("fresh\n");
+    expect(s.doc.isDirty()).toBe(false);
   });
 });
 

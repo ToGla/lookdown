@@ -1,11 +1,14 @@
 // One open file: its on-disk base text, the editor changes made since, and
 // saving. Saving rebuilds bytes from the base so untouched bytes never change.
 
-import { ChangeSet, Text, type Transaction } from "@codemirror/state";
+import { Annotation, ChangeSet, Text, type Transaction } from "@codemirror/state";
 import { decode, encode } from "./file/codec";
 import { type Base, makeBase, normalized, rebuild } from "./file/lines";
 
 export type Writer = (path: string, bytes: Uint8Array) => Promise<void>;
+
+/** Marks a transaction that loads on-disk text into the editor; not a user edit. */
+export const reloadAnnotation = Annotation.define<true>();
 
 export class OpenDocument {
   /** The text on disk (normalized), matching `base`. */
@@ -18,11 +21,12 @@ export class OpenDocument {
   private pendingFrom: Text;
   /** The last save started, until it settles; saves run one at a time. */
   private running: Promise<void> | null = null;
+  private isMissing = false;
 
   private constructor(
     readonly path: string,
     private base: Base,
-    private readonly bom: boolean,
+    private bom: boolean,
   ) {
     this.savedDoc = Text.of(normalized(base).split("\n"));
     this.current = this.savedDoc;
@@ -41,8 +45,43 @@ export class OpenDocument {
     return this.savedDoc.toString();
   }
 
+  /** True once the file vanished from disk; cleared by a save or reload. */
+  get missing(): boolean {
+    return this.isMissing;
+  }
+
+  markMissing(): void {
+    this.isMissing = true;
+  }
+
+  /**
+   * Replace the document with new on-disk bytes (the editor is loaded with the
+   * returned text via a reload-annotated transaction). If a save is running, the
+   * replacement is applied after it settles so the save cannot overwrite it.
+   */
+  reload(bytes: Uint8Array): { text: string } | { error: string } {
+    const result = decode(bytes);
+    if (!result.ok) return { error: result.error };
+    const apply = () => {
+      this.base = makeBase(result.text);
+      this.bom = result.bom;
+      this.savedDoc = Text.of(normalized(this.base).split("\n"));
+      this.current = this.savedDoc;
+      this.pendingFrom = this.savedDoc;
+      this.pending = ChangeSet.empty(this.savedDoc.length);
+      this.isMissing = false;
+    };
+    if (this.running) {
+      void this.running.then(apply);
+      return { text: Text.of(normalized(makeBase(result.text)).split("\n")).toString() };
+    }
+    apply();
+    return { text: this.savedDoc.toString() };
+  }
+
   /** Call for every editor transaction. */
   track(tr: Transaction): void {
+    if (tr.annotation(reloadAnnotation)) return;
     if (!tr.docChanged) return;
     this.current = tr.newDoc;
     this.pending = this.pending.compose(tr.changes);
@@ -55,7 +94,7 @@ export class OpenDocument {
   }
 
   isDirty(): boolean {
-    return !this.current.eq(this.savedDoc);
+    return this.isMissing || !this.current.eq(this.savedDoc);
   }
 
   /**
@@ -96,6 +135,7 @@ export class OpenDocument {
     }
     this.base = makeBase(raw);
     this.savedDoc = doc;
+    this.isMissing = false;
     return "saved";
   }
 }
