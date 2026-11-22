@@ -25,12 +25,14 @@
   "bundle": {
     "active": true,
     "targets": ["nsis"],
+    "publisher": "ToGla",
     "shortDescription": "Lightweight Markdown viewer and editor",
     "longDescription": "A lightweight WYSIWYG Markdown viewer and editor that saves your files byte for byte.",
     "fileAssociations": [
       {
         "ext": ["md", "markdown"],
-        "name": "Markdown document",
+        "name": "lookdown.markdown",
+        "description": "Markdown document",
         "role": "Editor",
         "mimeType": "text/markdown"
       }

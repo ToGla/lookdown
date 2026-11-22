@@ -34,7 +34,7 @@ editing.
 
 ### Requirements
 
-Windows 10 or later. The WebView2 runtime it needs is built into Windows.
+Windows 10 or later. The WebView2 runtime it needs is on current Windows 10 and 11; the setup downloads it if it is missing, while the portable exe needs it already installed.
 
 ### Install
 
@@ -42,7 +42,8 @@ There are no prebuilt downloads yet: build the setup from source (below), then
 run `lookdown_<version>_x64-setup.exe`. It needs no admin rights, installs for
 your user only and registers `.md` and `.markdown` files for "Open with".
 
-lookdown does not take over `.md` files by itself. To make it the default,
+If no app has been chosen for `.md` files yet, lookdown becomes the default
+right away. If another app already opens them, Windows keeps it; to switch,
 right-click a `.md` file, choose Open with, Choose another app, pick lookdown
 and select Always.
 
@@ -51,9 +52,9 @@ and select Always.
 **Update:** close lookdown, then run the new setup (it upgrades in place) or
 replace the portable exe.
 
-**Uninstall:** Windows Settings, Apps. Afterwards you can delete the webview
-data folder `%LOCALAPPDATA%\io.github.togla.lookdown` (the uninstaller offers
-to).
+**Uninstall:** Windows Settings, Apps. To also remove the webview
+data folder `%LOCALAPPDATA%\io.github.togla.lookdown`, tick "Delete the
+application data" in the uninstaller, or delete the folder by hand afterwards.
 
 **SmartScreen:** the exe is unsigned, so Windows may warn on first run. Choose
 "More info", then "Run anyway".

@@ -159,13 +159,18 @@ mod tests {
         for icon in icons {
             let rel = icon.as_str().unwrap();
             let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(rel);
-            assert!(path.exists(), "missing bundle icon {rel}");
+            assert!(path.is_file(), "missing bundle icon {rel}");
         }
     }
 
     #[test]
     fn bundle_builds_only_the_nsis_setup() {
         assert_eq!(conf()["bundle"]["targets"], serde_json::json!(["nsis"]));
+    }
+
+    #[test]
+    fn publisher_is_pinned() {
+        assert_eq!(conf()["bundle"]["publisher"], "ToGla");
     }
 
     #[test]
@@ -181,6 +186,8 @@ mod tests {
         let assoc = c["bundle"]["fileAssociations"].as_array().unwrap();
         assert_eq!(assoc.len(), 1);
         assert_eq!(assoc[0]["ext"], serde_json::json!(["md", "markdown"]));
+        assert_eq!(assoc[0]["name"], "lookdown.markdown");
+        assert_eq!(assoc[0]["description"], "Markdown document");
         assert_eq!(assoc[0]["role"], "Editor");
         assert_eq!(assoc[0]["mimeType"], "text/markdown");
     }

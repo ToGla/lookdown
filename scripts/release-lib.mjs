@@ -1,6 +1,10 @@
 // Pure helpers for scripts/release.mjs: no I/O.
 
-const SEMVER = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/;
+// Prerelease identifiers: numeric ones have no leading zeros, others contain a non-digit.
+const PRE_ID = String.raw`(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)`;
+const SEMVER = new RegExp(
+  String.raw`^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-${PRE_ID}(\.${PRE_ID})*)?$`,
+);
 
 export function isSemver(v) {
   return typeof v === "string" && SEMVER.test(v);

@@ -39,15 +39,24 @@ if (run("git", ["tag", "-l", `v${v}`]).trim() !== "") {
 
 const pkg = readFileSync(pkgPath, "utf8");
 if (packageVersion(pkg) !== v) {
-  writeFileSync(pkgPath, setPackageVersion(pkg, v));
-  writeFileSync(cargoPath, setCargoVersion(readFileSync(cargoPath, "utf8"), v));
+  const newPkg = setPackageVersion(pkg, v);
+  const newCargo = setCargoVersion(readFileSync(cargoPath, "utf8"), v);
   try {
-    run("cargo", ["update", "-p", "lookdown", "--manifest-path", manifest, "--offline"]);
-  } catch {
-    run("cargo", ["update", "-p", "lookdown", "--manifest-path", manifest]);
+    writeFileSync(pkgPath, newPkg);
+    writeFileSync(cargoPath, newCargo);
+    try {
+      run("cargo", ["update", "-p", "lookdown", "--manifest-path", manifest, "--offline"]);
+    } catch {
+      run("cargo", ["update", "-p", "lookdown", "--manifest-path", manifest]);
+    }
+    run("git", ["add", "package.json", manifest, "src-tauri/Cargo.lock"]);
+    run("git", ["commit", "-m", `release: v${v}`]);
+  } catch (e) {
+    console.error(`release: failed part-way (${e instanceof Error ? e.message : e}).`);
+    console.error("Files may be half-updated. To undo, run:");
+    console.error("  git checkout -- package.json src-tauri/Cargo.toml src-tauri/Cargo.lock");
+    process.exit(1);
   }
-  run("git", ["add", "package.json", manifest, "src-tauri/Cargo.lock"]);
-  run("git", ["commit", "-m", `release: v${v}`]);
 }
 run("git", ["tag", "-a", `v${v}`, "-m", `lookdown v${v}`]);
 

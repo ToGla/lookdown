@@ -11,11 +11,15 @@ describe("isSemver", () => {
   it("accepts plain and prerelease versions", () => {
     expect(isSemver("0.1.0")).toBe(true);
     expect(isSemver("1.2.3-rc.1")).toBe(true);
+    expect(isSemver("1.0.0-0")).toBe(true);
+    expect(isSemver("1.0.0-0a")).toBe(true);
   });
   it("rejects malformed versions", () => {
     expect(isSemver("v0.1.0")).toBe(false);
     expect(isSemver("0.1")).toBe(false);
     expect(isSemver("01.2.3")).toBe(false);
+    expect(isSemver("1.0.0-01")).toBe(false);
+    expect(isSemver("1.0.0-rc.01")).toBe(false);
   });
 });
 
