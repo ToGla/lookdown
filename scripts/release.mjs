@@ -54,7 +54,7 @@ if (packageVersion(pkg) !== v) {
   } catch (e) {
     console.error(`release: failed part-way (${e instanceof Error ? e.message : e}).`);
     console.error("Files may be half-updated. To undo, run:");
-    console.error("  git checkout -- package.json src-tauri/Cargo.toml src-tauri/Cargo.lock");
+    console.error("  git checkout HEAD -- package.json src-tauri/Cargo.toml src-tauri/Cargo.lock");
     process.exit(1);
   }
 }
