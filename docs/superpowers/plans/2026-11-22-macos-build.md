@@ -273,3 +273,12 @@ git commit -m "feat: macOS app and dmg bundles"
 git add README.md CLAUDE.md
 git commit -m "docs: macOS install, build and menu"
 ```
+
+## Outcome of Task 1
+
+Probed 2026-11-22 in `pnpm tauri dev` on macOS (arm64), menu item `probe` on `CmdOrCtrl+S`:
+
+- Page handles `Cmd+S` and calls `preventDefault`: the page's keydown fires, the menu item does **not**.
+- Page sees `Cmd+S` but does not call `preventDefault`: the page's keydown fires **and** the menu item fires.
+- So: **webview first; the menu fires only for keys the page leaves unhandled.** Task 3 keeps accelerators on all custom items; Task 2 Step 5 is **not** needed. `keyCommand` already calls `preventDefault` (also on key repeat), and CodeMirror's history keymap calls it when it undoes, so each shortcut runs once. Rule for future keys: a key the page handles must call `preventDefault`, or the menu runs it a second time.
+- With `PredefinedMenuItem::copy`/`paste` in the menu, `Cmd+C`/`Cmd+V` copy and paste in the editor; `Cmd+Z` undoes the paste.
