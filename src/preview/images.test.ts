@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildDecorations } from "./decorations";
 import { imageBlocks, imageField } from "./images";
 import { at, describeDecorations, mdState } from "./test-helpers";
+import { ImageChipWidget } from "./widgets";
 
 const D = { docPath: "/d/a.md" };
 
@@ -50,6 +51,10 @@ describe("imageBlocks", () => {
     expect(imageBlocks(s)).toEqual([]);
     const from = at(s, "![c]");
     expect(decos(doc)).toContain(`widget image-chip ${from}-${from + "![c](i.png)".length}`);
+  });
+
+  it("image chip does not swallow clicks", () => {
+    expect(new ImageChipWidget("a").ignoreEvent(new Event("mousedown"))).toBe(false);
   });
 
   it("hides the image syntax unless revealed", () => {

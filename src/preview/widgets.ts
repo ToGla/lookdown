@@ -76,4 +76,8 @@ export class ImageChipWidget extends WidgetType {
     el.textContent = `🖼 ${this.alt}`;
     return el;
   }
+  // The chip fills its cell, so ignoring clicks would make the cell unreachable by mouse.
+  ignoreEvent(_event: Event): boolean {
+    return false;
+  }
 }
