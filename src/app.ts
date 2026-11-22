@@ -77,6 +77,8 @@ export interface AppUi {
   createView(state: EditorState): ViewPort;
   render(model: AppModel): void;
   status(message: string): void;
+  /** Called when "some tab is unsaved" changes: guards against page unload. */
+  setUnsaved(unsaved: boolean): void;
 }
 
 /** Frontend commands; a later menu bar calls the same ones. */
@@ -108,6 +110,17 @@ export function keyCommand(e: KeyLike, isMac: boolean): Command | null {
   return null;
 }
 
+/**
+ * Keys that reload the page and would drop every tab: F5 (also with Ctrl or
+ * Shift), the BrowserRefresh key, `Mod-r` and `Mod-Shift-r`.
+ */
+export function isReloadKey(e: KeyLike, isMac: boolean): boolean {
+  if (e.altKey) return false;
+  if (e.key === "F5" || e.key === "BrowserRefresh") return true;
+  const mod = isMac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
+  return mod && e.key.toLowerCase() === "r";
+}
+
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -134,6 +147,9 @@ export class App {
   private prompting = false;
   /** A window close is being confirmed; another close request is refused. */
   private closingWindow = false;
+  /** The window may close; unsaved tabs no longer guard against unload. */
+  private closeApproved = false;
+  private lastUnsaved = false;
 
   constructor(
     private readonly host: Host,
@@ -459,6 +475,10 @@ export class App {
         },
       );
       if (!result.close && result.activate !== null) this.select(result.activate);
+      if (result.close) {
+        this.closeApproved = true;
+        this.refresh();
+      }
       return result.close;
     } catch {
       return false;
@@ -597,7 +617,18 @@ export class App {
       this.lastModel = key;
       this.ui.render(model);
     }
+    const unsaved = !this.closeApproved && ws.tabs.some((t) => t.doc.isDirty());
+    if (unsaved !== this.lastUnsaved) {
+      this.lastUnsaved = unsaved;
+      this.ui.setUnsaved(unsaved);
+    }
   }
+}
+
+/** Asks before the page unloads (a reload from the context menu, say). */
+function blockUnload(e: BeforeUnloadEvent): void {
+  e.preventDefault();
+  e.returnValue = true; // legacy browsers need a truthy value
 }
 
 function editorPort(parent: HTMLElement, state: EditorState): ViewPort {
@@ -633,6 +664,10 @@ export function startApp(root: { tabs: HTMLElement; app: HTMLElement; status: HT
       root.status.textContent = message;
       root.status.hidden = message === "";
     },
+    setUnsaved(unsaved) {
+      if (unsaved) window.addEventListener("beforeunload", blockUnload);
+      else window.removeEventListener("beforeunload", blockUnload);
+    },
   };
   const app = new App(host, ui);
 
@@ -640,6 +675,12 @@ export function startApp(root: { tabs: HTMLElement; app: HTMLElement; status: HT
   window.addEventListener(
     "keydown",
     (e) => {
+      // A reload drops every tab; the dev build keeps it for Vite's reloads.
+      if (import.meta.env.PROD && isReloadKey(e, host.isMac)) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
       const command = keyCommand(e, host.isMac);
       if (!command) return;
       e.preventDefault();

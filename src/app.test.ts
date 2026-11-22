@@ -3,7 +3,7 @@ import { EditorView, type ViewUpdate } from "@codemirror/view";
 import { undo } from "@codemirror/commands";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
-import { App, type AppModel, type AppUi, type ViewPort, keyCommand } from "./app";
+import { App, type AppModel, type AppUi, type ViewPort, isReloadKey, keyCommand } from "./app";
 import { previewConfig } from "./preview/images";
 import { closeMenu } from "./preview/popup-menu";
 import { FakeHost } from "./test-host";
@@ -56,6 +56,11 @@ class StubUi implements AppUi {
   views: StubView[] = [];
   models: AppModel[] = [];
   statuses: string[] = [];
+  /** Every `setUnsaved` call, in order. */
+  unsavedCalls: boolean[] = [];
+  setUnsaved(unsaved: boolean): void {
+    this.unsavedCalls.push(unsaved);
+  }
   createView(state: EditorState): ViewPort {
     const view = new StubView(state);
     this.views.push(view);
@@ -964,5 +969,70 @@ describe("final fixes: the table menu closes when the shown tab changes", () => 
     vi.mocked(closeMenu).mockClear();
     app.select(app.active!.id);
     expect(closeMenu).not.toHaveBeenCalled();
+  });
+});
+
+describe("final fixes: reloading the page", () => {
+  const key = (k: string, mods: Partial<Record<"ctrlKey" | "metaKey" | "shiftKey" | "altKey", boolean>> = {}) => ({
+    key: k,
+    ctrlKey: false,
+    metaKey: false,
+    shiftKey: false,
+    altKey: false,
+    ...mods,
+  });
+
+  test("F5, Ctrl+F5 and Shift+F5 reload on every platform", () => {
+    for (const mac of [false, true]) {
+      expect(isReloadKey(key("F5"), mac)).toBe(true);
+      expect(isReloadKey(key("F5", { ctrlKey: true }), mac)).toBe(true);
+      expect(isReloadKey(key("F5", { shiftKey: true }), mac)).toBe(true);
+      expect(isReloadKey(key("BrowserRefresh"), mac)).toBe(true);
+    }
+  });
+
+  test("Mod-r and Mod-Shift-r reload: Ctrl on Windows and Linux, Cmd on macOS", () => {
+    expect(isReloadKey(key("r", { ctrlKey: true }), false)).toBe(true);
+    expect(isReloadKey(key("R", { ctrlKey: true, shiftKey: true }), false)).toBe(true);
+    expect(isReloadKey(key("r", { metaKey: true }), true)).toBe(true);
+    expect(isReloadKey(key("R", { metaKey: true, shiftKey: true }), true)).toBe(true);
+    expect(isReloadKey(key("r", { metaKey: true }), false)).toBe(false);
+    expect(isReloadKey(key("r", { ctrlKey: true }), true)).toBe(false);
+  });
+
+  test("other keys are not reloads", () => {
+    expect(isReloadKey(key("r"), false)).toBe(false);
+    expect(isReloadKey(key("R", { shiftKey: true }), false)).toBe(false);
+    expect(isReloadKey(key("r", { ctrlKey: true, altKey: true }), false)).toBe(false);
+    expect(isReloadKey(key("F5", { altKey: true }), false)).toBe(false);
+    expect(isReloadKey(key("s", { ctrlKey: true }), false)).toBe(false);
+    expect(isReloadKey(key("F4"), false)).toBe(false);
+  });
+
+  test("the unload guard is on only while a tab is unsaved", async () => {
+    await app.openPaths(["/docs/a.md", "/docs/b.md"]);
+    expect(ui.unsavedCalls).toEqual([]);
+    edit();
+    edit("Y");
+    expect(ui.unsavedCalls).toEqual([true]);
+    await app.run("save");
+    expect(ui.unsavedCalls).toEqual([true, false]);
+    edit();
+    host.answers = [1];
+    await app.run("close");
+    expect(ui.unsavedCalls).toEqual([true, false, true, false]);
+  });
+
+  test("the unload guard is off once the window may close with unsaved tabs", async () => {
+    await app.start();
+    await app.openPaths(["/docs/a.md"]);
+    edit();
+    host.answers = [2];
+    expect(await host.requestClose()).toBe(false);
+    expect(ui.unsavedCalls).toEqual([true]);
+    host.answers = [1];
+    expect(await host.requestClose()).toBe(true);
+    expect(ui.unsavedCalls).toEqual([true, false]);
+    expect(app.active!.doc.isDirty()).toBe(true);
   });
 });
