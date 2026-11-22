@@ -106,13 +106,22 @@ export const loadedWebImages = StateField.define<ReadonlyMap<string, number>>({
   },
 });
 
-/** Asks local images to render again, e.g. after files changed on disk. Not undoable. */
-export const retryImages = StateEffect.define<null>();
+/** Asks the local images at these paths (which failed before) to render again. Not undoable. */
+export const retryImages = StateEffect.define<readonly string[]>();
 
-const imageEpoch = StateField.define<number>({
-  create: () => 0,
+/** Retries per local image path; a bump rebuilds only that path's widgets. */
+const imageRetries = StateField.define<ReadonlyMap<string, number>>({
+  create: () => new Map(),
   update(value, tr) {
-    return tr.effects.some((e) => e.is(retryImages)) ? value + 1 : value;
+    let next: Map<string, number> | null = null;
+    for (const e of tr.effects) {
+      if (!e.is(retryImages)) continue;
+      for (const path of e.value) {
+        next ??= new Map(value);
+        next.set(path, (next.get(path) ?? 0) + 1);
+      }
+    }
+    return next ?? value;
   },
 });
 
@@ -123,7 +132,7 @@ export class ImageBlockWidget extends WidgetType {
     readonly source: ImageSource,
     readonly href: string | null,
     readonly loaded: boolean,
-    /** Web: load attempts. Local: the retry epoch. A change redraws the widget. */
+    /** Web: load attempts. Local: retries of its path. A change redraws the widget. */
     readonly version: number = 0,
   ) {
     super();
@@ -205,22 +214,22 @@ export class ImageBlockWidget extends WidgetType {
 function imageState(
   source: ImageSource,
   attempts: ReadonlyMap<string, number> | undefined,
-  epoch: number,
+  retries: ReadonlyMap<string, number> | undefined,
 ): [loaded: boolean, version: number] {
   if (source.kind === "web") {
     const n = attempts?.get(source.url) ?? 0;
     return [n > 0, n];
   }
-  return [false, source.kind === "local" ? epoch : 0];
+  return [false, source.kind === "local" ? (retries?.get(source.path) ?? 0) : 0];
 }
 
 function buildImages(state: EditorState): DecorationSet {
   const attempts = state.field(loadedWebImages, false);
-  const epoch = state.field(imageEpoch, false) ?? 0;
+  const retries = state.field(imageRetries, false);
   return Decoration.set(
     imageBlocks(state).map((b) =>
       Decoration.widget({
-        widget: new ImageBlockWidget(b.alt, b.source, b.href, ...imageState(b.source, attempts, epoch)),
+        widget: new ImageBlockWidget(b.alt, b.source, b.href, ...imageState(b.source, attempts, retries)),
         block: true,
         side: 1,
         ld: "widget",
@@ -236,7 +245,7 @@ export const imageField = StateField.define<DecorationSet>({
       tr.docChanged ||
       syntaxTree(tr.startState) !== syntaxTree(tr.state) ||
       tr.startState.field(loadedWebImages, false) !== tr.state.field(loadedWebImages, false) ||
-      tr.startState.field(imageEpoch, false) !== tr.state.field(imageEpoch, false)
+      tr.startState.field(imageRetries, false) !== tr.state.field(imageRetries, false)
     )
       return buildImages(tr.state);
     return value;
@@ -265,5 +274,5 @@ export const imageRetainer = ViewPlugin.define((view) => ({
 }));
 
 export function imageExtensions(config: PreviewConfig) {
-  return [previewConfig.of(config), loadedWebImages, imageEpoch, imageField, imageRetainer];
+  return [previewConfig.of(config), loadedWebImages, imageRetries, imageField, imageRetainer];
 }

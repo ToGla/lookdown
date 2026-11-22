@@ -55,12 +55,13 @@ describe("loadWebImage", () => {
 });
 
 describe("retryImages", () => {
-  it("makes local widgets not eq, but leaves web and unchanged ones alone", () => {
-    const doc = "![l](pic.png)\n\n![w](https://e.com/x.png)";
+  it("makes only the retried path's widgets not eq", () => {
+    const doc = "![a](a.png)\n\n![b](b.png)\n\n![w](https://e.com/x.png)";
     const before = mdState(doc, { docPath: "C:/d/a.md" });
-    const after = before.update({ effects: retryImages.of(null) }).state;
+    const after = before.update({ effects: retryImages.of(["C:/d/a.png"]) }).state;
     expect(widgets(after)[0].eq(widgets(before)[0])).toBe(false);
     expect(widgets(after)[1].eq(widgets(before)[1])).toBe(true);
+    expect(widgets(after)[2].eq(widgets(before)[2])).toBe(true);
     expect(after.doc.toString()).toBe(doc);
   });
 });

@@ -78,24 +78,26 @@ describe("ImageCache", () => {
   });
 
   it("forgetFailures makes a failed path load again, but not a loaded one", async () => {
-    let fail = true;
+    let fail = false;
     const { io, cache } = setup(async () => {
       if (fail) throw new Error("missing");
       return 10;
     });
     await cache.load("/d/ok.png");
-    expect(io.read).toHaveBeenCalledTimes(0);
+    expect(io.read).toHaveBeenCalledTimes(1);
+    fail = true;
     expect(await cache.load("/d/gone.png")).toEqual({ error: "not-found" });
     fail = false;
     expect(await cache.load("/d/gone.png")).toEqual({ error: "not-found" });
-    cache.forgetFailures();
+    expect(cache.forgetFailures()).toEqual(["/d/gone.png"]);
+    expect(cache.forgetFailures()).toEqual([]);
     expect(await cache.load("/d/gone.png")).toEqual({ url: "blob:n" });
   });
 
   it("forgetFailures keeps successes without reading them again", async () => {
     const { io, cache, revokeUrl } = setup();
     await cache.load("/d/i.png");
-    cache.forgetFailures();
+    expect(cache.forgetFailures()).toEqual([]);
     await cache.load("/d/i.png");
     expect(io.read).toHaveBeenCalledTimes(1);
     expect(revokeUrl).not.toHaveBeenCalled();

@@ -42,7 +42,7 @@ lookdown notes.md
   to that window, and opening a file that is already open switches to its tab.
 - `Ctrl+O` (`Cmd+O`) opens files. You can also drop files onto the window.
   On Windows this replaces dragging text inside the editor.
-- `Ctrl+W` closes the tab. `Ctrl+Tab` / `Ctrl+Shift+Tab` (or `Ctrl+PageDown` /
+- `Ctrl+W` (`Cmd+W`) closes the tab. `Ctrl+Tab` / `Ctrl+Shift+Tab` (or `Ctrl+PageDown` /
   `Ctrl+PageUp`) switch tabs.
 - `Ctrl+S` (`Cmd+S` on macOS) saves. A `•` on a tab and in the window title
   means unsaved changes. There is no autosave.

@@ -631,6 +631,17 @@ describe("changes on disk", () => {
     spies.forEach((s) => expect(s).toHaveBeenCalled());
   });
 
+  test("window focus with no failed images dispatches nothing", async () => {
+    await app.openPaths(["/docs/a.md", "/docs/b.md"]);
+    await app.start();
+    const before = ui.view.state;
+    const hidden = app.tabs[0].state;
+    host.focus();
+    app.stop();
+    expect(ui.view.state).toBe(before);
+    expect(app.tabs[0].state).toBe(hidden);
+  });
+
   test("a silent reload of the active tab forgets failed images", async () => {
     await app.openPaths(["/docs/a.md"]);
     const spy = vi.spyOn(ui.view.state.facet(previewConfig).images!, "forgetFailures");

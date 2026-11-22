@@ -57,9 +57,11 @@ export class ImageCache {
   }
 
   /** Drops memoized failures (not successes), so the next `load` of those paths reads again. */
-  forgetFailures(): void {
-    for (const path of this.failed) this.entries.delete(path);
+  forgetFailures(): string[] {
+    const paths = [...this.failed];
+    for (const path of paths) this.entries.delete(path);
     this.failed.clear();
+    return paths;
   }
 
   private async fetch(path: string): Promise<Loaded> {

@@ -382,17 +382,18 @@ export class App {
 
   /**
    * Failed images may be loadable now (a file appeared): forget the failures
-   * and redraw local images in every tab. Successes stay cached, so they render
-   * again without reading the disk. Hidden tabs get the effect in their saved
+   * and redraw only the images at those paths, in every tab. Nothing is
+   * dispatched when nothing failed. Hidden tabs get the effect in their saved
    * state, so they are right when next shown.
    */
   private retryImages(): void {
     for (const tab of this.workspace.tabs) {
       const live = tab === this.shown && this.view;
       const state = live ? live.state : tab.state;
-      state.facet(previewConfig).images?.forgetFailures();
-      if (live) live.dispatch({ effects: retryImages.of(null) });
-      else tab.state = tab.state.update({ effects: retryImages.of(null) }).state;
+      const failed = state.facet(previewConfig).images?.forgetFailures() ?? [];
+      if (failed.length === 0) continue;
+      if (live) live.dispatch({ effects: retryImages.of(failed) });
+      else tab.state = tab.state.update({ effects: retryImages.of(failed) }).state;
     }
   }
 
