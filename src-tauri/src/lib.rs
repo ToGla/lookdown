@@ -1,4 +1,6 @@
 mod files;
+mod menu;
+mod quit;
 
 use std::path::Path;
 use tauri::{Emitter, Manager};
@@ -24,6 +26,11 @@ pub fn run() {
                 let _ = window.set_focus();
             }
         }))
+        .setup(|_app| {
+            #[cfg(target_os = "macos")]
+            quit::install(_app.handle());
+            Ok(())
+        })
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(files::PathQueue::new(startup))
@@ -33,7 +40,12 @@ pub fn run() {
             files::write_file,
             files::file_size,
             files::file_stamp
-        ])
+        ]);
+    #[cfg(target_os = "macos")]
+    let app = app
+        .menu(menu::build)
+        .on_menu_event(|app, event| menu::handle(app, event.id().as_ref()));
+    let app = app
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
 
