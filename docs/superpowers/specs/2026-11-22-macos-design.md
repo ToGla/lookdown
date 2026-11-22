@@ -174,8 +174,8 @@ step 3).
 3. **Closing the window:** quit the app (simple; what lookdown does on
    Windows), or keep it running with no window, Mac style (needs Dock
    reopen handling and a new-window path)?
-4. **Is v0.1.0 tagged before this step,** after the user's Windows install
-   check, with macOS arriving in a later version (e.g. 0.2.0)?
+4. ~~Is v0.1.0 tagged before this step?~~ Settled: `v0.1.0` (Windows only)
+   was tagged and pushed on 2026-11-22; macOS arrives in a later version.
 
 ## Left to the builder
 
