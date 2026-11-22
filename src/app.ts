@@ -184,7 +184,6 @@ export class App {
   }
 
   select(id: number): void {
-    closeMenu();
     this.workspace.activate(id);
     this.sync();
   }
@@ -207,11 +206,9 @@ export class App {
         return;
       }
       case "next":
-        closeMenu();
         this.workspace.next();
         return this.sync();
       case "previous":
-        closeMenu();
         this.workspace.previous();
         return this.sync();
       case "save":
@@ -553,10 +550,14 @@ export class App {
     });
   }
 
-  /** Show the workspace's active tab in the view, then refresh title and tab bar. */
+  /**
+   * Show the workspace's active tab in the view, then refresh title and tab bar.
+   * An open table menu acts on the shown view, so it closes when the tab changes.
+   */
   private sync(): void {
     const next = this.workspace.active;
     if (next !== this.shown) {
+      closeMenu();
       if (this.shown && this.view) {
         this.shown.state = this.view.state;
         this.shown.scroll = this.view.scrollSnapshot();

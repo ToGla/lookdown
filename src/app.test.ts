@@ -5,8 +5,15 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import { App, type AppModel, type AppUi, type ViewPort, keyCommand } from "./app";
 import { previewConfig } from "./preview/images";
+import { closeMenu } from "./preview/popup-menu";
 import { FakeHost } from "./test-host";
 import { emptyText } from "./ui/empty";
+
+// Spied on, so tests can check an open table menu is closed when the shown tab changes.
+vi.mock("./preview/popup-menu", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./preview/popup-menu")>();
+  return { ...actual, closeMenu: vi.fn(actual.closeMenu) };
+});
 
 const scrollTo = StateEffect.define<number>();
 
@@ -928,5 +935,34 @@ describe("final fixes: window close around running saves", () => {
     expect(await second).toBe(false);
     answer(2);
     expect(await first).toBe(false);
+  });
+});
+
+describe("final fixes: the table menu closes when the shown tab changes", () => {
+  test("closing the active tab closes an open menu", async () => {
+    await app.openPaths(["/docs/a.md", "/docs/b.md"]);
+    vi.mocked(closeMenu).mockClear();
+    await app.run("close");
+    expect(activePath()).toBe("/docs/a.md");
+    expect(closeMenu).toHaveBeenCalled();
+  });
+
+  test("opening a file closes an open menu", async () => {
+    await app.openPaths(["/docs/a.md"]);
+    vi.mocked(closeMenu).mockClear();
+    await app.openPaths(["/docs/b.md"]);
+    expect(closeMenu).toHaveBeenCalled();
+  });
+
+  test("switching tabs still closes it; selecting the shown tab does not", async () => {
+    await app.openPaths(["/docs/a.md", "/docs/b.md"]);
+    vi.mocked(closeMenu).mockClear();
+    app.select(app.tabs[0].id);
+    await app.run("next");
+    await app.run("previous");
+    expect(closeMenu).toHaveBeenCalledTimes(3);
+    vi.mocked(closeMenu).mockClear();
+    app.select(app.active!.id);
+    expect(closeMenu).not.toHaveBeenCalled();
   });
 });
