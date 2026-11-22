@@ -2,7 +2,7 @@
 
 import { OpenDocument, basename, windowTitle } from "./document";
 import { createEditor } from "./editor";
-import { fileSize, initialPath, openUrl, readFile, setTitle, writeFile } from "./native";
+import { fileSize, openUrl, readFile, setTitle, takePaths, writeFile } from "./native";
 
 const app = document.querySelector<HTMLElement>("#app")!;
 const status = document.querySelector<HTMLElement>("#status")!;
@@ -14,7 +14,7 @@ function showStatus(message: string): void {
 
 async function start(): Promise<void> {
   showStatus("");
-  const path = await initialPath();
+  const path = (await takePaths())[0];
   if (!path) {
     showStatus("No file open. Start lookdown with a file: lookdown notes.md");
     return;

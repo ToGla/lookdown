@@ -1,22 +1,48 @@
 //! File I/O for the frontend. Rust only moves bytes: decoding, line endings
 //! and byte-exact saving all live in the frontend.
 
+use serde::Serialize;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 use tauri::ipc::Response;
 
-/// The file named on the command line at startup, if any.
-pub struct StartupPath(pub Option<PathBuf>);
+/// Paths waiting for the frontend to open them: the startup arguments, then
+/// anything a second instance or the OS hands us while the app runs.
+#[derive(Default)]
+pub struct PathQueue(Mutex<Vec<String>>);
 
-/// First argument after the program name that is not a flag, resolved
-/// against `cwd` when relative.
-pub fn path_from_args(args: &[String], cwd: &Path) -> Option<PathBuf> {
-    let arg = args.iter().skip(1).find(|a| !a.starts_with('-'))?;
-    let path = Path::new(arg);
-    Some(if path.is_absolute() {
-        path.to_path_buf()
-    } else {
-        cwd.join(path)
-    })
+impl PathQueue {
+    pub fn new(paths: Vec<PathBuf>) -> Self {
+        let q = Self::default();
+        q.push(paths);
+        q
+    }
+
+    pub fn push(&self, paths: Vec<PathBuf>) {
+        let mut queue = self.0.lock().unwrap_or_else(|e| e.into_inner());
+        queue.extend(paths.into_iter().map(|p| p.to_string_lossy().into_owned()));
+    }
+
+    pub fn drain(&self) -> Vec<String> {
+        std::mem::take(&mut *self.0.lock().unwrap_or_else(|e| e.into_inner()))
+    }
+}
+
+/// Every argument after the program name that is not a flag, in order,
+/// resolved against `cwd` when relative.
+pub fn paths_from_args(args: &[String], cwd: &Path) -> Vec<PathBuf> {
+    args.iter()
+        .skip(1)
+        .filter(|a| !a.starts_with('-'))
+        .map(|arg| {
+            let path = Path::new(arg);
+            if path.is_absolute() {
+                path.to_path_buf()
+            } else {
+                cwd.join(path)
+            }
+        })
+        .collect()
 }
 
 fn read_bytes(path: &Path) -> Result<Vec<u8>, String> {
@@ -27,9 +53,10 @@ fn write_bytes(path: &Path, contents: &[u8]) -> Result<(), String> {
     std::fs::write(path, contents).map_err(|e| format!("{}: {e}", path.display()))
 }
 
+/// Drains the queue of paths to open.
 #[tauri::command]
-pub fn initial_path(startup: tauri::State<'_, StartupPath>) -> Option<String> {
-    startup.0.as_ref().map(|p| p.to_string_lossy().into_owned())
+pub fn take_paths(queue: tauri::State<'_, PathQueue>) -> Vec<String> {
+    queue.drain()
 }
 
 // File commands are `async` so Tauri runs them off the main thread: a slow
@@ -74,6 +101,34 @@ pub fn file_size(path: String) -> Result<u64, String> {
         .map_err(|e| format!("{}: {e}", path.display()))
 }
 
+/// Modification time and size, to detect external changes cheaply.
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct Stamp {
+    pub modified_ms: u64,
+    pub size: u64,
+}
+
+/// `Ok(None)` when the file does not exist. `modified_ms` is 0 when the
+/// platform cannot report a modification time (the size still differs).
+#[tauri::command(async)]
+pub fn file_stamp(path: String) -> Result<Option<Stamp>, String> {
+    check_local(&path)?;
+    let path = Path::new(&path);
+    match std::fs::metadata(path) {
+        Ok(m) => {
+            let modified_ms = m
+                .modified()
+                .ok()
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map_or(0, |d| d.as_millis() as u64);
+            Ok(Some(Stamp { modified_ms, size: m.len() }))
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(format!("{}: {e}", path.display())),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -85,15 +140,15 @@ mod tests {
     #[test]
     fn no_argument_means_no_path() {
         let cwd = std::env::temp_dir();
-        assert_eq!(path_from_args(&args(&["lookdown"]), &cwd), None);
+        assert!(paths_from_args(&args(&["lookdown"]), &cwd).is_empty());
     }
 
     #[test]
     fn relative_path_resolves_against_cwd() {
         let cwd = std::env::temp_dir();
         assert_eq!(
-            path_from_args(&args(&["lookdown", "notes.md"]), &cwd),
-            Some(cwd.join("notes.md"))
+            paths_from_args(&args(&["lookdown", "notes.md"]), &cwd),
+            vec![cwd.join("notes.md")]
         );
     }
 
@@ -102,16 +157,70 @@ mod tests {
         let abs = std::env::temp_dir().join("notes.md");
         let cwd = std::env::temp_dir().join("elsewhere");
         let given = abs.to_string_lossy().into_owned();
-        assert_eq!(path_from_args(&args(&["lookdown", &given]), &cwd), Some(abs));
+        assert_eq!(paths_from_args(&args(&["lookdown", &given]), &cwd), vec![abs]);
     }
 
     #[test]
     fn flags_are_skipped() {
         let cwd = std::env::temp_dir();
         assert_eq!(
-            path_from_args(&args(&["lookdown", "--flag", "notes.md"]), &cwd),
-            Some(cwd.join("notes.md"))
+            paths_from_args(&args(&["lookdown", "--flag", "notes.md"]), &cwd),
+            vec![cwd.join("notes.md")]
         );
+    }
+
+    #[test]
+    fn every_path_is_returned_in_order() {
+        let cwd = std::env::temp_dir();
+        let abs = std::env::temp_dir().join("c.md");
+        let given = abs.to_string_lossy().into_owned();
+        assert_eq!(
+            paths_from_args(&args(&["lookdown", "a.md", "-x", "b.md", &given]), &cwd),
+            vec![cwd.join("a.md"), cwd.join("b.md"), abs]
+        );
+    }
+
+    #[test]
+    fn queue_drain_returns_everything_and_empties_it() {
+        let q = PathQueue::default();
+        q.push(vec![PathBuf::from("/a.md"), PathBuf::from("/b.md")]);
+        q.push(vec![PathBuf::from("/c.md")]);
+        assert_eq!(q.drain().len(), 3);
+        assert!(q.drain().is_empty());
+    }
+
+    #[test]
+    fn queue_can_be_seeded() {
+        let q = PathQueue::new(vec![PathBuf::from("/a.md")]);
+        assert_eq!(q.drain(), vec![PathBuf::from("/a.md").to_string_lossy().into_owned()]);
+    }
+
+    #[test]
+    fn file_stamp_reports_size_and_time() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("s.md");
+        write_bytes(&path, b"abcd").unwrap();
+        let stamp = file_stamp(path.to_string_lossy().into_owned()).unwrap().unwrap();
+        assert_eq!(stamp.size, 4);
+        assert!(stamp.modified_ms > 0);
+    }
+
+    #[test]
+    fn file_stamp_of_a_missing_file_is_none() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("missing.md");
+        assert!(file_stamp(path.to_string_lossy().into_owned()).unwrap().is_none());
+    }
+
+    #[test]
+    fn file_stamp_refuses_unc_paths() {
+        assert!(file_stamp("//h/s".to_string()).is_err());
+    }
+
+    #[test]
+    fn stamp_serializes_camel_case() {
+        let json = serde_json::to_string(&Stamp { modified_ms: 5, size: 7 }).unwrap();
+        assert_eq!(json, r#"{"modifiedMs":5,"size":7}"#);
     }
 
     #[test]

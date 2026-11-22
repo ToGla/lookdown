@@ -1,12 +1,18 @@
 // Typed wrappers around the Rust commands in src-tauri/src/files.rs.
 
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { openUrl as openExternal } from "@tauri-apps/plugin-opener";
 
-/** The file given on the command line at startup, if any. */
-export function initialPath(): Promise<string | null> {
-  return invoke<string | null>("initial_path");
+/** Drains the paths waiting to be opened (startup arguments, second instances). */
+export function takePaths(): Promise<string[]> {
+  return invoke<string[]>("take_paths");
+}
+
+/** Calls back when new paths were queued; fetch them with `takePaths`. */
+export function onPathsQueued(cb: () => void): Promise<() => void> {
+  return listen("paths-queued", () => cb());
 }
 
 export async function readFile(path: string): Promise<Uint8Array> {
@@ -19,6 +25,16 @@ export async function writeFile(path: string, bytes: Uint8Array): Promise<void> 
 
 export function fileSize(path: string): Promise<number> {
   return invoke<number>("file_size", { path });
+}
+
+export interface FileStamp {
+  modifiedMs: number;
+  size: number;
+}
+
+/** Modification time and size; null when the file does not exist. */
+export function fileStamp(path: string): Promise<FileStamp | null> {
+  return invoke<FileStamp | null>("file_stamp", { path });
 }
 
 export function setTitle(title: string): Promise<void> {
