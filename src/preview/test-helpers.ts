@@ -4,15 +4,17 @@ import { ensureSyntaxTree } from "@codemirror/language";
 import { markdownSupport } from "./markdown";
 import { rawTable } from "./table-model";
 import { enableReveal, revealEnabled } from "./reveal";
-import { imageField, previewConfig } from "./images";
+import { imageExtensions } from "./images";
+import type { Extension } from "@codemirror/state";
 
 export function mdState(
   doc: string,
   opts: {
     selection?: EditorSelection | { anchor: number; head?: number };
     reveal?: boolean;
-    /** Provides previewConfig (without an image cache) and imageField. */
+    /** Provides the image extensions (without an image cache). */
     docPath?: string | null;
+    extensions?: Extension[];
   } = {},
 ): EditorState {
   let state = EditorState.create({
@@ -23,7 +25,8 @@ export function mdState(
       revealEnabled,
       rawTable,
       EditorState.allowMultipleSelections.of(true),
-      opts.docPath === undefined ? [] : [previewConfig.of({ docPath: opts.docPath, images: null }), imageField],
+      opts.docPath === undefined ? [] : imageExtensions({ docPath: opts.docPath, images: null }),
+      opts.extensions ?? [],
     ],
   });
   if (opts.reveal) {

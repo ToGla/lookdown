@@ -2,7 +2,7 @@
 // may only come from a StateField, so this lives apart from livePlugin.
 
 import { syntaxTree } from "@codemirror/language";
-import { type EditorState, Facet, StateField } from "@codemirror/state";
+import { type EditorState, Facet, StateEffect, StateField } from "@codemirror/state";
 import { Decoration, type DecorationSet, EditorView, ViewPlugin, WidgetType } from "@codemirror/view";
 import type { SyntaxNode } from "@lezer/common";
 import type { ImageCache } from "./image-loader";
@@ -89,12 +89,27 @@ function sameSource(a: ImageSource, b: ImageSource): boolean {
   return a.kind === b.kind;
 }
 
+/** Asks to load the web image at this URL. Not undoable; lasts for the session. */
+export const loadWebImage = StateEffect.define<string>();
+
+export const loadedWebImages = StateField.define<ReadonlySet<string>>({
+  create: () => new Set(),
+  update(value, tr) {
+    let next: Set<string> | null = null;
+    for (const e of tr.effects) {
+      if (e.is(loadWebImage) && !value.has(e.value)) (next ??= new Set(value)).add(e.value);
+    }
+    return next ?? value;
+  },
+});
+
 export class ImageBlockWidget extends WidgetType {
   readonly name = "image";
   constructor(
     readonly alt: string,
     readonly source: ImageSource,
     readonly href: string | null,
+    readonly loaded: boolean,
   ) {
     super();
   }
@@ -103,6 +118,7 @@ export class ImageBlockWidget extends WidgetType {
       other instanceof ImageBlockWidget &&
       other.alt === this.alt &&
       other.href === this.href &&
+      other.loaded === this.loaded &&
       sameSource(other.source, this.source)
     );
   }
@@ -114,7 +130,26 @@ export class ImageBlockWidget extends WidgetType {
 
     const source = this.source;
     if (source.kind === "web") {
-      dom.append(missing(this.alt, source.url));
+      if (!this.loaded) {
+        const placeholder = missing(this.alt, source.url);
+        placeholder.dataset.ldWeb = source.url;
+        dom.append(placeholder);
+        return dom;
+      }
+      const img = document.createElement("img");
+      img.alt = this.alt;
+      img.referrerPolicy = "no-referrer";
+      img.onload = () => {
+        img.onload = img.onerror = null;
+        if (img.isConnected) view.requestMeasure();
+      };
+      img.onerror = () => {
+        img.onload = img.onerror = null;
+        dom.replaceChildren(missing(this.alt, "image could not be loaded"));
+        if (dom.isConnected) view.requestMeasure();
+      };
+      img.src = source.url;
+      dom.append(img);
       return dom;
     }
     const images = view.state.facet(previewConfig).images;
@@ -149,10 +184,16 @@ export class ImageBlockWidget extends WidgetType {
 }
 
 function buildImages(state: EditorState): DecorationSet {
+  const loadedUrls = state.field(loadedWebImages, false);
   return Decoration.set(
     imageBlocks(state).map((b) =>
       Decoration.widget({
-        widget: new ImageBlockWidget(b.alt, b.source, b.href),
+        widget: new ImageBlockWidget(
+          b.alt,
+          b.source,
+          b.href,
+          b.source.kind === "web" && loadedUrls?.has(b.source.url) === true,
+        ),
         block: true,
         side: 1,
         ld: "widget",
@@ -164,7 +205,12 @@ function buildImages(state: EditorState): DecorationSet {
 export const imageField = StateField.define<DecorationSet>({
   create: buildImages,
   update(value, tr) {
-    if (tr.docChanged || syntaxTree(tr.startState) !== syntaxTree(tr.state)) return buildImages(tr.state);
+    if (
+      tr.docChanged ||
+      syntaxTree(tr.startState) !== syntaxTree(tr.state) ||
+      tr.startState.field(loadedWebImages, false) !== tr.state.field(loadedWebImages, false)
+    )
+      return buildImages(tr.state);
     return value;
   },
   provide: (f) => EditorView.decorations.from(f),
@@ -191,5 +237,5 @@ export const imageRetainer = ViewPlugin.define((view) => ({
 }));
 
 export function imageExtensions(config: PreviewConfig) {
-  return [previewConfig.of(config), imageField, imageRetainer];
+  return [previewConfig.of(config), loadedWebImages, imageField, imageRetainer];
 }

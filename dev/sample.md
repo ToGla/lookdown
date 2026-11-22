@@ -53,6 +53,8 @@ A missing image: ![no such file](images/missing.png)
 
 A web image (not loaded): ![remote](https://example.com/picture.png)
 
+A web image that loads on Load image: ![w3c](https://www.w3.org/Icons/w3c_home.png)
+
 An image inside a link (Mod+click opens it): [![linked icon](images/icon.png)](https://example.com)
 
 Two images on one line: ![first](images/icon.png) and ![second](images/shape.svg)

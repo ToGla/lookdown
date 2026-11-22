@@ -50,7 +50,8 @@ lookdown notes.md
   deletes and aligns rows and columns.
 - Local images (PNG, JPEG, GIF, WebP, SVG) render under their line, resolved
   against the file's folder, at natural size capped to the text column. Web
-  images are not loaded: they show their URL, and `Ctrl`+click opens it.
+  images show their URL and load on request (right-click, Load image);
+  `Ctrl`+click opens it.
   Files over 20 MB show a placeholder instead.
 - lookdown opens UTF-8 files only. Other encodings show an error instead of
   being opened and possibly damaged.
