@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { history, undo } from "@codemirror/commands";
-import { ImageBlockWidget, imageField, loadWebImage } from "./images";
+import { ImageBlockWidget, imageField, loadWebImage, loadedWebImages, retryImages } from "./images";
 import { webImageUrlAt } from "./web-image-menu";
 import { mdState } from "./test-helpers";
 import type { EditorState } from "@codemirror/state";
@@ -38,9 +38,30 @@ describe("loadWebImage", () => {
     expect(widgets(after)[0].loaded).toBe(true);
   });
 
+  it("counts attempts: loading the same URL again gives a widget that is not eq", () => {
+    const url = "https://e.com/x.png";
+    const one = mdState(DOC, { docPath: "C:/d/a.md" }).update({ effects: loadWebImage.of(url) }).state;
+    const two = one.update({ effects: loadWebImage.of(url) }).state;
+    expect(one.field(loadedWebImages).get(url)).toBe(1);
+    expect(two.field(loadedWebImages).get(url)).toBe(2);
+    expect(widgets(two)[0].eq(widgets(one)[0])).toBe(false);
+    expect(widgets(two)[2].eq(widgets(one)[2])).toBe(true);
+  });
+
   it("is ignored by local images", () => {
     const s = mdState("![l](pic.png)", { docPath: "C:/d/a.md" }).update({ effects: loadWebImage.of("pic.png") }).state;
     expect(widgets(s)[0].loaded).toBe(false);
+  });
+});
+
+describe("retryImages", () => {
+  it("makes local widgets not eq, but leaves web and unchanged ones alone", () => {
+    const doc = "![l](pic.png)\n\n![w](https://e.com/x.png)";
+    const before = mdState(doc, { docPath: "C:/d/a.md" });
+    const after = before.update({ effects: retryImages.of(null) }).state;
+    expect(widgets(after)[0].eq(widgets(before)[0])).toBe(false);
+    expect(widgets(after)[1].eq(widgets(before)[1])).toBe(true);
+    expect(after.doc.toString()).toBe(doc);
   });
 });
 

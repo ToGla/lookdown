@@ -6,6 +6,7 @@ import { buildDecorations } from "./decorations";
 import { isOpenableUrl, linkUrlAt } from "./links";
 import { rawTable } from "./table-model";
 import { enableReveal, revealEnabled } from "./reveal";
+import { closeMenu } from "./popup-menu";
 import { tableMenu } from "./table-menu";
 import { webImageMenu } from "./web-image-menu";
 import { toggleTask } from "./tasks";
@@ -107,6 +108,12 @@ export function livePreviewPlugin(opts: { openUrl?: (url: string) => void } = {}
     rawTable,
     webImageMenu(),
     tableMenu(),
+    // A menu acts on positions in the document it opened over: close it on any edit.
+    ViewPlugin.define(() => ({
+      update(u) {
+        if (u.docChanged) closeMenu();
+      },
+    })),
     livePlugin,
     Prec.high(keymap.of(tableKeymap)),
     EditorView.inputHandler.of((view, from, to, text) => {

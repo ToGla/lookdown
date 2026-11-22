@@ -14,6 +14,7 @@ export type Loaded = { url: string } | { error: "not-found" | "too-large" };
 export class ImageCache {
   private entries = new Map<string, Promise<Loaded>>();
   private urls = new Map<string, string>();
+  private failed = new Set<string>();
 
   constructor(
     private io: ImageIO,
@@ -29,7 +30,10 @@ export class ImageCache {
       this.entries.set(path, entry);
       const pending = entry;
       void pending.then((r) => {
-        if (!("url" in r)) return;
+        if (!("url" in r)) {
+          if (this.entries.get(path) === pending) this.failed.add(path);
+          return;
+        }
         // Dropped by retain while loading: nothing will use the URL.
         if (this.entries.get(path) === pending) this.urls.set(path, r.url);
         else this.revokeUrl(r.url);
@@ -43,12 +47,19 @@ export class ImageCache {
     for (const path of [...this.entries.keys()]) {
       if (paths.has(path)) continue;
       this.entries.delete(path);
+      this.failed.delete(path);
       const url = this.urls.get(path);
       if (url !== undefined) {
         this.urls.delete(path);
         this.revokeUrl(url);
       }
     }
+  }
+
+  /** Drops memoized failures (not successes), so the next `load` of those paths reads again. */
+  forgetFailures(): void {
+    for (const path of this.failed) this.entries.delete(path);
+    this.failed.clear();
   }
 
   private async fetch(path: string): Promise<Loaded> {

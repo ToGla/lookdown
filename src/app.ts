@@ -7,6 +7,8 @@ import type { EditorState, StateEffect, TransactionSpec } from "@codemirror/stat
 
 import { OpenDocument } from "./document";
 import { createTabState, createView, reloadTransaction } from "./editor";
+import { previewConfig, retryImages } from "./preview/images";
+import { closeMenu } from "./preview/popup-menu";
 import type { Host } from "./host";
 import { closeAll } from "./tabs/closing";
 import { type Stamp, compareStamp, diskAction, needsOverwriteConfirm } from "./tabs/disk";
@@ -153,7 +155,9 @@ export class App {
     this.host.onFilesDropped((paths) => void this.openPaths(paths));
     this.host.onCloseRequested(() => this.confirmWindowClose());
     this.host.onFocus(() => {
-      if (!this.stopped) void this.checkDisk();
+      if (this.stopped) return;
+      this.retryImages();
+      void this.checkDisk();
     });
     this.timer = setInterval(() => void this.checkDisk(), POLL_MS);
     this.refresh();
@@ -178,6 +182,7 @@ export class App {
   }
 
   select(id: number): void {
+    closeMenu();
     this.workspace.activate(id);
     this.sync();
   }
@@ -200,9 +205,11 @@ export class App {
         return;
       }
       case "next":
+        closeMenu();
         this.workspace.next();
         return this.sync();
       case "previous":
+        closeMenu();
         this.workspace.previous();
         return this.sync();
       case "save":
@@ -367,8 +374,25 @@ export class App {
         // Silent reload: cursor and history map through, not an undo step.
         if (tab === this.shown && this.view) this.view.dispatch(reloadTransaction(this.view.state, result.text));
         else tab.state = tab.state.update(reloadTransaction(tab.state, result.text)).state;
+        this.retryImages();
         return;
       }
+    }
+  }
+
+  /**
+   * Failed images may be loadable now (a file appeared): forget the failures
+   * and redraw local images in every tab. Successes stay cached, so they render
+   * again without reading the disk. Hidden tabs get the effect in their saved
+   * state, so they are right when next shown.
+   */
+  private retryImages(): void {
+    for (const tab of this.workspace.tabs) {
+      const live = tab === this.shown && this.view;
+      const state = live ? live.state : tab.state;
+      state.facet(previewConfig).images?.forgetFailures();
+      if (live) live.dispatch({ effects: retryImages.of(null) });
+      else tab.state = tab.state.update({ effects: retryImages.of(null) }).state;
     }
   }
 

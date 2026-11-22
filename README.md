@@ -3,9 +3,9 @@
 A lightweight Markdown viewer and editor for quickly opening and editing a
 Markdown file, then getting out of your way.
 
-> **Status: early development.** lookdown can open a file from the command line,
-> edit it with a live preview of text, blocks, tables and images, and save it.
-> Tabs and an installer are next (see [Roadmap](#roadmap)).
+> **Status: early development.** lookdown opens files in tabs, edits them with a
+> live preview of text, blocks, tables and images, and saves them. The menu bar
+> and an installer are next (see [Roadmap](#roadmap)).
 
 ## Why lookdown
 
@@ -38,8 +38,19 @@ file:
 lookdown notes.md
 ```
 
-- `Ctrl+S` (`Cmd+S` on macOS) saves. A `•` in the window title means there are
-  unsaved changes.
+- One window with tabs. Running `lookdown other.md` while it is open adds a tab
+  to that window, and opening a file that is already open switches to its tab.
+- `Ctrl+O` (`Cmd+O`) opens files. You can also drop files onto the window.
+  On Windows this replaces dragging text inside the editor.
+- `Ctrl+W` closes the tab. `Ctrl+Tab` / `Ctrl+Shift+Tab` (or `Ctrl+PageDown` /
+  `Ctrl+PageUp`) switch tabs.
+- `Ctrl+S` (`Cmd+S` on macOS) saves. A `•` on a tab and in the window title
+  means unsaved changes. There is no autosave.
+- Closing a tab with unsaved changes asks Save, Don't save or Cancel. Closing
+  the window asks once, listing every unsaved tab.
+- If a file changes on disk, a tab without unsaved changes reloads silently.
+  With unsaved changes, a bar at the top warns you and lets you keep your
+  version or reload the file. A `!` on a background tab means it needs a look.
 - Live preview renders headings, emphasis, lists, quotes, code and links in
   place. The syntax reappears on the line you are editing.
 - `Ctrl`+click (`Cmd`+click on macOS) on a web or mail link opens it. Other
@@ -61,8 +72,9 @@ lookdown notes.md
 1. ~~Open, edit and save one file, byte-exact~~ (done)
 2. ~~Live preview: render CommonMark + GFM (tables, task lists,
    strikethrough, autolinks) in place, including local images~~ (done)
-3. Tabs and single instance: opening another file adds a tab to the running
-   window; prompts before closing unsaved tabs; reload files changed on disk
+3. ~~Tabs and single instance: opening another file adds a tab to the running
+   window; prompts before closing unsaved tabs; reload files changed on disk~~
+   (done)
 4. Native polish: menu bar, `.md` file association, portable exe and installer
 
 Windows is the first target; macOS follows.

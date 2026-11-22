@@ -92,14 +92,27 @@ function sameSource(a: ImageSource, b: ImageSource): boolean {
 /** Asks to load the web image at this URL. Not undoable; lasts for the session. */
 export const loadWebImage = StateEffect.define<string>();
 
-export const loadedWebImages = StateField.define<ReadonlySet<string>>({
-  create: () => new Set(),
+/** Load attempts per web URL; a retry bumps it, which rebuilds that URL's widgets. */
+export const loadedWebImages = StateField.define<ReadonlyMap<string, number>>({
+  create: () => new Map(),
   update(value, tr) {
-    let next: Set<string> | null = null;
+    let next: Map<string, number> | null = null;
     for (const e of tr.effects) {
-      if (e.is(loadWebImage) && !value.has(e.value)) (next ??= new Set(value)).add(e.value);
+      if (!e.is(loadWebImage)) continue;
+      next ??= new Map(value);
+      next.set(e.value, (next.get(e.value) ?? 0) + 1);
     }
     return next ?? value;
+  },
+});
+
+/** Asks local images to render again, e.g. after files changed on disk. Not undoable. */
+export const retryImages = StateEffect.define<null>();
+
+const imageEpoch = StateField.define<number>({
+  create: () => 0,
+  update(value, tr) {
+    return tr.effects.some((e) => e.is(retryImages)) ? value + 1 : value;
   },
 });
 
@@ -110,6 +123,8 @@ export class ImageBlockWidget extends WidgetType {
     readonly source: ImageSource,
     readonly href: string | null,
     readonly loaded: boolean,
+    /** Web: load attempts. Local: the retry epoch. A change redraws the widget. */
+    readonly version: number = 0,
   ) {
     super();
   }
@@ -119,6 +134,7 @@ export class ImageBlockWidget extends WidgetType {
       other.alt === this.alt &&
       other.href === this.href &&
       other.loaded === this.loaded &&
+      other.version === this.version &&
       sameSource(other.source, this.source)
     );
   }
@@ -145,7 +161,10 @@ export class ImageBlockWidget extends WidgetType {
       };
       img.onerror = () => {
         img.onload = img.onerror = null;
-        dom.replaceChildren(missing(this.alt, "image could not be loaded"));
+        // Keeps data-ld-web, so the menu offers "Load image" again.
+        const failed = missing(this.alt, "image could not be loaded");
+        failed.dataset.ldWeb = source.url;
+        dom.replaceChildren(failed);
         if (dom.isConnected) view.requestMeasure();
       };
       img.src = source.url;
@@ -183,17 +202,25 @@ export class ImageBlockWidget extends WidgetType {
   }
 }
 
+function imageState(
+  source: ImageSource,
+  attempts: ReadonlyMap<string, number> | undefined,
+  epoch: number,
+): [loaded: boolean, version: number] {
+  if (source.kind === "web") {
+    const n = attempts?.get(source.url) ?? 0;
+    return [n > 0, n];
+  }
+  return [false, source.kind === "local" ? epoch : 0];
+}
+
 function buildImages(state: EditorState): DecorationSet {
-  const loadedUrls = state.field(loadedWebImages, false);
+  const attempts = state.field(loadedWebImages, false);
+  const epoch = state.field(imageEpoch, false) ?? 0;
   return Decoration.set(
     imageBlocks(state).map((b) =>
       Decoration.widget({
-        widget: new ImageBlockWidget(
-          b.alt,
-          b.source,
-          b.href,
-          b.source.kind === "web" && loadedUrls?.has(b.source.url) === true,
-        ),
+        widget: new ImageBlockWidget(b.alt, b.source, b.href, ...imageState(b.source, attempts, epoch)),
         block: true,
         side: 1,
         ld: "widget",
@@ -208,7 +235,8 @@ export const imageField = StateField.define<DecorationSet>({
     if (
       tr.docChanged ||
       syntaxTree(tr.startState) !== syntaxTree(tr.state) ||
-      tr.startState.field(loadedWebImages, false) !== tr.state.field(loadedWebImages, false)
+      tr.startState.field(loadedWebImages, false) !== tr.state.field(loadedWebImages, false) ||
+      tr.startState.field(imageEpoch, false) !== tr.state.field(imageEpoch, false)
     )
       return buildImages(tr.state);
     return value;
@@ -237,5 +265,5 @@ export const imageRetainer = ViewPlugin.define((view) => ({
 }));
 
 export function imageExtensions(config: PreviewConfig) {
-  return [previewConfig.of(config), loadedWebImages, imageField, imageRetainer];
+  return [previewConfig.of(config), loadedWebImages, imageEpoch, imageField, imageRetainer];
 }

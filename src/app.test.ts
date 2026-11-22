@@ -4,6 +4,7 @@ import { undo } from "@codemirror/commands";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import { App, type AppModel, type AppUi, type ViewPort, keyCommand } from "./app";
+import { previewConfig } from "./preview/images";
 import { FakeHost } from "./test-host";
 import { emptyText } from "./ui/empty";
 
@@ -619,6 +620,23 @@ describe("changes on disk", () => {
     expect(app.active!.doc.isDirty()).toBe(false);
     expect(host.title).toBe("a.md — lookdown");
     expect(ui.views).toHaveLength(1);
+  });
+
+  test("window focus forgets failed images in every tab", async () => {
+    await app.openPaths(["/docs/a.md", "/docs/b.md"]);
+    const spies = app.tabs.map((t) => vi.spyOn(t.state.facet(previewConfig).images!, "forgetFailures"));
+    await app.start();
+    host.focus();
+    app.stop();
+    spies.forEach((s) => expect(s).toHaveBeenCalled());
+  });
+
+  test("a silent reload of the active tab forgets failed images", async () => {
+    await app.openPaths(["/docs/a.md"]);
+    const spy = vi.spyOn(ui.view.state.facet(previewConfig).images!, "forgetFailures");
+    host.setFile("/docs/a.md", "alpha!\n");
+    await app.checkDisk();
+    expect(spy).toHaveBeenCalled();
   });
 
   test("a dirty active tab shows the changed bar and is not reloaded", async () => {

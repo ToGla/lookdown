@@ -8,6 +8,11 @@ export interface MenuItem {
 
 let closeCurrent: (() => void) | null = null;
 
+/** Closes the open menu, if any. */
+export function closeMenu(): void {
+  closeCurrent?.();
+}
+
 export function openMenu(view: EditorView, items: MenuItem[], x: number, y: number): void {
   closeCurrent?.();
   const menu = document.createElement("div");
