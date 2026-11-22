@@ -150,4 +150,16 @@ mod tests {
             .collect();
         assert_eq!(urls, ["http://*", "https://*", "mailto:*"]);
     }
+
+    #[test]
+    fn bundle_icon_files_exist() {
+        let c = conf();
+        let icons = c["bundle"]["icon"].as_array().unwrap();
+        assert!(!icons.is_empty());
+        for icon in icons {
+            let rel = icon.as_str().unwrap();
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(rel);
+            assert!(path.exists(), "missing bundle icon {rel}");
+        }
+    }
 }
