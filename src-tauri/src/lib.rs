@@ -162,4 +162,26 @@ mod tests {
             assert!(path.exists(), "missing bundle icon {rel}");
         }
     }
+
+    #[test]
+    fn bundle_builds_only_the_nsis_setup() {
+        assert_eq!(conf()["bundle"]["targets"], serde_json::json!(["nsis"]));
+    }
+
+    #[test]
+    fn setup_installs_per_user() {
+        let nsis = &conf()["bundle"]["windows"]["nsis"];
+        assert_eq!(nsis["installMode"], "currentUser");
+        assert_eq!(nsis["displayLanguageSelector"], false);
+    }
+
+    #[test]
+    fn markdown_extensions_are_associated() {
+        let c = conf();
+        let assoc = c["bundle"]["fileAssociations"].as_array().unwrap();
+        assert_eq!(assoc.len(), 1);
+        assert_eq!(assoc[0]["ext"], serde_json::json!(["md", "markdown"]));
+        assert_eq!(assoc[0]["role"], "Editor");
+        assert_eq!(assoc[0]["mimeType"], "text/markdown");
+    }
 }

@@ -4,8 +4,9 @@ A lightweight Markdown viewer and editor for quickly opening and editing a
 Markdown file, then getting out of your way.
 
 > **Status: early development.** lookdown opens files in tabs, edits them with a
-> live preview of text, blocks, tables and images, and saves them. The menu bar
-> and an installer are next (see [Roadmap](#roadmap)).
+> live preview of text, blocks, tables and images, and saves them. It ships as a
+> Windows installer and a portable exe. A macOS build is next (see
+> [Roadmap](#roadmap)).
 
 ## Why lookdown
 
@@ -13,7 +14,7 @@ Most Markdown editors are either full note-taking apps with vaults and sidebars,
 or rich-text editors that rewrite your file when they save it. lookdown aims to
 be neither:
 
-- **Lightweight.** A single small executable (about 3 MB) using the system
+- **Lightweight.** A single small executable (about 3.4 MB) using the system
   webview, not a bundled browser.
 - **Quick to start.** Double-click a `.md` file, read it, edit it, close it.
 - **Your bytes stay yours.** Saving never reformats the document. Lines you
@@ -31,8 +32,35 @@ editing.
 
 ## Using it
 
-There are no prebuilt downloads yet. Build it from source (below), then open a
-file:
+### Requirements
+
+Windows 10 or later. The WebView2 runtime it needs is built into Windows.
+
+### Install
+
+There are no prebuilt downloads yet: build the setup from source (below), then
+run `lookdown_<version>_x64-setup.exe`. It needs no admin rights, installs for
+your user only and registers `.md` and `.markdown` files for "Open with".
+
+lookdown does not take over `.md` files by itself. To make it the default,
+right-click a `.md` file, choose Open with, Choose another app, pick lookdown
+and select Always.
+
+**Portable:** copy `lookdown.exe` anywhere and run it. Nothing is registered.
+
+**Update:** close lookdown, then run the new setup (it upgrades in place) or
+replace the portable exe.
+
+**Uninstall:** Windows Settings, Apps. Afterwards you can delete the webview
+data folder `%LOCALAPPDATA%\io.github.togla.lookdown` (the uninstaller offers
+to).
+
+**SmartScreen:** the exe is unsigned, so Windows may warn on first run. Choose
+"More info", then "Run anyway".
+
+### Opening files
+
+Open a file from the command line:
 
 ```powershell
 lookdown notes.md
@@ -75,7 +103,9 @@ lookdown notes.md
 3. ~~Tabs and single instance: opening another file adds a tab to the running
    window; prompts before closing unsaved tabs; reload files changed on disk~~
    (done)
-4. Native polish: menu bar, `.md` file association, portable exe and installer
+4. ~~Native polish: `.md` file association, portable exe and installer~~
+   (done; Windows keeps a menu-less window)
+5. macOS build, with a native menu bar
 
 Windows is the first target; macOS follows.
 
@@ -113,8 +143,28 @@ To open a file while developing, pass it after two `--`, using an absolute path:
 pnpm tauri dev -- -- C:\path\to\notes.md
 ```
 
-The release build lands in `src-tauri/target/release/lookdown.exe`, with
-installers under `src-tauri/target/release/bundle/`.
+The release build lands in `src-tauri/target/release/lookdown.exe`, with the
+setup under `src-tauri/target/release/bundle/nsis/`.
+
+The app icon is generated from `src-tauri/icons/lookdown.svg`: run
+`pnpm tauri icon src-tauri/icons/lookdown.svg` to regenerate it, then delete the
+android, ios and Store logo files it also creates.
+
+### Releasing
+
+```powershell
+pnpm release 0.2.0    # bumps package.json, Cargo.toml and Cargo.lock, commits, tags v0.2.0
+pnpm tauri build
+```
+
+`pnpm release` refuses a dirty working tree, an invalid SemVer version or an
+existing tag, and never pushes. If the version is unchanged it only tags.
+
+Artifacts:
+
+- `src-tauri/target/release/lookdown.exe`: the portable exe (3.4 MB)
+- `src-tauri/target/release/bundle/nsis/lookdown_<version>_x64-setup.exe`: the
+  per-user setup (1.3 MB)
 
 ### Project layout
 

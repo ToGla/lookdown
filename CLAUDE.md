@@ -61,7 +61,7 @@ The project uses the [superpowers](https://github.com/obra/superpowers) plugin, 
 Windows is the v1 ship target; macOS comes later, so write cross-platform code from the start:
 
 - No Windows-only APIs or path assumptions.
-- Keybindings use CodeMirror `Mod-` (Ctrl on Windows, Cmd on macOS); provide a native menu bar (macOS expects one).
+- Keybindings use CodeMirror `Mod-` (Ctrl on Windows, Cmd on macOS); provide a native menu bar on macOS only (Windows keeps a menu-less window).
 - Files arrive two ways and both must feed the same open-file path: command-line args (Windows, and second instances via the single-instance plugin) and the macOS open-file event (`RunEvent::Opened`).
 - Test rendering on both WebView2 (Chromium) and WebKit when macOS is added.
 - macOS builds need a Mac (plan: GitHub Actions macOS runner); signing/notarization is deferred.
