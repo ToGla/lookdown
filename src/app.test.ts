@@ -876,3 +876,57 @@ describe("fix round 1: close and save around disk changes", () => {
     expect(app.active!.stamp).toEqual(host.stamps.get("/docs/a.md"));
   });
 });
+
+describe("final fixes: window close around running saves", () => {
+  /** Holds every write until `release()`; returns the release function. */
+  function holdWrites(): () => void {
+    const held: (() => void)[] = [];
+    const realWrite = host.writeFile.bind(host);
+    host.writeFile = (path, bytes) =>
+      new Promise<void>((resolve, reject) => held.push(() => void realWrite(path, bytes).then(resolve, reject)));
+    return () => held.splice(0).forEach((go) => go());
+  }
+  const settle = () => new Promise((r) => setTimeout(r, 0));
+
+  test("a close requested during a running save waits for it, then lists only still-unsaved tabs", async () => {
+    await app.start();
+    await app.openPaths(["/docs/a.md", "/docs/b.md"]);
+    app.select(app.tabs[0].id);
+    edit();
+    const release = holdWrites();
+    const saving = app.run("save");
+    app.select(app.tabs[1].id);
+    edit();
+    host.answers = [2];
+    const closing = host.requestClose();
+    await settle();
+    expect(host.asked).toHaveLength(0);
+    release();
+    await saving;
+    expect(await closing).toBe(false);
+    expect(host.text("/docs/a.md")).toBe("Xalpha\n");
+    expect(host.asked).toEqual([
+      { message: "Save changes to these files?\nb.md", buttons: ["Save all", "Discard all", "Cancel"] },
+    ]);
+  });
+
+  test("a second close request while the first prompt is open returns false", async () => {
+    await app.start();
+    await app.openPaths(["/docs/a.md"]);
+    edit();
+    let answer!: (choice: 0 | 1 | 2) => void;
+    host.ask = (message, buttons) => {
+      host.asked.push({ message, buttons });
+      return new Promise((resolve) => (answer = resolve));
+    };
+    const first = host.requestClose();
+    await settle();
+    expect(host.asked).toHaveLength(1);
+    const second = host.requestClose();
+    await settle();
+    expect(host.asked).toHaveLength(1);
+    expect(await second).toBe(false);
+    answer(2);
+    expect(await first).toBe(false);
+  });
+});

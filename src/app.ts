@@ -132,6 +132,8 @@ export class App {
   private checking = false;
   /** A tab-close prompt is open; another one is not stacked on top. */
   private prompting = false;
+  /** A window close is being confirmed; another close request is refused. */
+  private closingWindow = false;
 
   constructor(
     private readonly host: Host,
@@ -429,9 +431,17 @@ export class App {
     this.ui.status("");
   }
 
-  /** The window's close button: one prompt listing every unsaved tab. */
+  /**
+   * The window's close button: one prompt listing every unsaved tab. A close
+   * request while one is being answered is refused. Running saves finish
+   * first, so the list is accurate and no write is cut off by the window
+   * closing.
+   */
   private async confirmWindowClose(): Promise<boolean> {
+    if (this.closingWindow) return false;
+    this.closingWindow = true;
     try {
+      await Promise.all(this.workspace.tabs.map((t) => t.saveChain.catch(() => undefined)));
       const result = await closeAll(
         this.workspace.tabs.map((t) => ({ id: t.id, dirty: t.doc.isDirty() })),
         async (ids) => {
@@ -455,6 +465,8 @@ export class App {
       return result.close;
     } catch {
       return false;
+    } finally {
+      this.closingWindow = false;
     }
   }
 
