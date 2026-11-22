@@ -39,6 +39,81 @@ body {
   padding: 0 1.5rem;
 }
 
+/* Tab strip: one row, scrolls sideways. */
+.ld-tabbar {
+  display: flex;
+  flex: none;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  font-size: 0.8125rem;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+  background: color-mix(in srgb, currentColor 4%, Canvas);
+}
+.ld-tabbar[hidden] {
+  display: none;
+}
+.ld-tab {
+  display: flex;
+  flex: none;
+  align-items: center;
+  max-width: 16rem;
+  border-right: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+  color: color-mix(in srgb, currentColor 70%, transparent);
+}
+.ld-tab-active {
+  color: CanvasText;
+  background: Canvas;
+  box-shadow: inset 0 -2px 0 color-mix(in srgb, currentColor 40%, #2f6fe0);
+}
+.ld-tab button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  cursor: default;
+}
+.ld-tab-select {
+  display: flex;
+  gap: 0.25em;
+  min-width: 0;
+  padding: 0.4rem 0.25rem 0.4rem 0.75rem;
+  white-space: nowrap;
+}
+.ld-tab-marker:empty {
+  display: none;
+}
+.ld-tab-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ld-tab-close {
+  margin-right: 0.35rem;
+  padding: 0 0.3rem;
+  border-radius: 3px;
+  line-height: 1.4;
+  opacity: 0.6;
+}
+.ld-tab-close:hover {
+  opacity: 1;
+  background: color-mix(in srgb, currentColor 14%, transparent);
+}
+
+/* Shown in #app when no tab is open. */
+.ld-empty {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  box-sizing: border-box;
+  text-align: center;
+  color: color-mix(in srgb, currentColor 55%, transparent);
+}
+.ld-empty[hidden] {
+  display: none;
+}
+
 #status {
   margin: 0;
   padding: 0.5rem 1rem;
