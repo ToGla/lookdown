@@ -141,13 +141,13 @@ body {
 
 /* Images: a block under their line, natural size capped to the column. */
 /* Block widgets lack .cm-line's horizontal padding; match it so images line up with text. */
+/* Vertical spacing is padding, not margin on the img: margins collapse through the block widget and CodeMirror then mis-measures its height. */
 .cm-ld-image {
-  padding: 0 2px 0 6px;
+  padding: 0.4em 2px 0.4em 6px;
 }
 .cm-ld-image img {
   max-width: 100%;
   display: block;
-  margin: 0.4em 0;
 }
 .cm-ld-image-missing,
 .cm-ld-image-chip {
