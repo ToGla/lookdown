@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { baseName, parentName, pathKey } from "./paths";
+import { describe, expect, it, test } from "vitest";
+import { baseName, newFileDefaultPath, parentName, pathKey, withMarkdownExtension } from "./paths";
 
 describe("pathKey", () => {
   it("matches equivalent Windows spellings when case-insensitive", () => {
@@ -33,5 +33,28 @@ describe("baseName / parentName", () => {
   it("gives empty parent at a root", () => {
     expect(parentName("C:\\a.md")).toBe("");
     expect(parentName("/a.md")).toBe("");
+  });
+});
+
+describe("withMarkdownExtension", () => {
+  test("appends .md when the name has no extension", () => {
+    expect(withMarkdownExtension("/p/idea")).toBe("/p/idea.md");
+    expect(withMarkdownExtension("/p/.notes")).toBe("/p/.notes.md");
+    expect(withMarkdownExtension("/p/my.project/idea")).toBe("/p/my.project/idea.md");
+    expect(withMarkdownExtension("C:\\my.project\\idea")).toBe("C:\\my.project\\idea.md");
+  });
+  test("keeps any existing extension", () => {
+    for (const p of ["/p/idea.md", "/p/idea.markdown", "/p/idea.txt", "C:\\p\\idea.md"])
+      expect(withMarkdownExtension(p)).toBe(p);
+  });
+});
+
+describe("newFileDefaultPath", () => {
+  test("without a tab it is just the default name", () => {
+    expect(newFileDefaultPath(null)).toBe("untitled.md");
+  });
+  test("default path keeps native separators", () => {
+    expect(newFileDefaultPath("/docs/a.md")).toBe("/docs/untitled.md");
+    expect(newFileDefaultPath("C:\\notes\\a.md")).toBe("C:\\notes\\untitled.md");
   });
 });

@@ -61,3 +61,21 @@ export function parentPath(path: string): string {
   const p = parse(path);
   return join(p, p.segs.slice(0, -1));
 }
+
+/** Index just past the last `/` or `\` (0 when there is none). */
+function nameStart(path: string): number {
+  return Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")) + 1;
+}
+
+/**
+ * Appends `.md` when the file name has no extension: no `.` after its first
+ * character, so `.notes` gets one too. Separators are kept as given.
+ */
+export function withMarkdownExtension(path: string): string {
+  return path.indexOf(".", nameStart(path) + 1) === -1 ? `${path}.md` : path;
+}
+
+/** Where the new-file dialog starts: `untitled.md` beside the active file. */
+export function newFileDefaultPath(activePath: string | null): string {
+  return activePath === null ? "untitled.md" : `${activePath.slice(0, nameStart(activePath))}untitled.md`;
+}
