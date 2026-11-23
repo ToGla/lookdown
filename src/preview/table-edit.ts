@@ -125,3 +125,31 @@ export function setAlign(state: EditorState, pos: number, align: "left" | "cente
   const insert = align === "left" ? ":" + dashes : align === "right" ? dashes + ":" : ":" + dashes + ":";
   return { changes: { from: cell.textFrom, to: cell.textTo, insert } };
 }
+
+/** The starter table: a header row and one body row, two columns. */
+const NEW_TABLE = "|  |  |\n|--|--|\n|  |  |";
+
+/**
+ * Insert a starter table on the cursor's line when it is blank, else after it,
+ * separated by a blank line from any text above and below. The cursor lands in
+ * the first header cell. Null inside a grid table.
+ */
+export function insertTable(state: EditorState): Spec | null {
+  const head = state.selection.main.head;
+  if (tableAt(state, head)) return null;
+  const doc = state.doc;
+  const line = doc.lineAt(head);
+  const textAt = (n: number) => (n >= 1 && n <= doc.lines ? doc.line(n).text.trim() !== "" : false);
+  const after = textAt(line.number + 1) ? "\n" : "";
+  if (line.text.trim() === "") {
+    const before = textAt(line.number - 1) ? "\n" : "";
+    return {
+      changes: { from: line.from, to: line.to, insert: before + NEW_TABLE + after },
+      selection: EditorSelection.cursor(line.from + before.length + 2),
+    };
+  }
+  return {
+    changes: { from: line.to, insert: "\n\n" + NEW_TABLE + after },
+    selection: EditorSelection.cursor(line.to + 4),
+  };
+}

@@ -1,6 +1,6 @@
 import type { EditorState, TransactionSpec } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
-import { deleteColumn, deleteRow, insertColumn, insertRow, setAlign } from "./table-edit";
+import { deleteColumn, deleteRow, insertColumn, insertRow, insertTable, setAlign } from "./table-edit";
 import { tableAt } from "./table-model";
 import { at, mdState } from "./test-helpers";
 
@@ -204,6 +204,49 @@ describe("undo", () => {
         ])
           run(doc, pos, fn); // asserts the undo inside
       }
+    }
+  });
+});
+
+describe("insertTable", () => {
+  const TABLE = "|  |  |\n|--|--|\n|  |  |";
+  function ins(doc: string, anchor: number, head = anchor) {
+    const s = mdState(doc, { selection: { anchor, head } });
+    const spec = insertTable(s);
+    if (!spec) return null;
+    const tr = s.update(spec);
+    expect(tr.changes.invert(s.doc).apply(tr.state.doc).toString()).toBe(doc);
+    return { doc: tr.state.doc.toString(), head: tr.state.selection.main.head, state: tr.state };
+  }
+  const cases: [string, string, number, string, number][] = [
+    ["empty document", "", 0, TABLE, 2],
+    ["after a line of text", "text", 2, "text\n\n" + TABLE, 8],
+    ["blank line between paragraphs", "a\n  \nb", 3, "a\n\n" + TABLE + "\n\nb", 5],
+    ["existing blank lines are reused", "a\n\n\n\nb", 3, "a\n\n" + TABLE + "\n\nb", 5],
+    ["text line followed by text", "a\nb", 0, "a\n\n" + TABLE + "\n\nb", 5],
+    ["text line followed by a blank line", "a\n\nb", 0, "a\n\n" + TABLE + "\n\nb", 5],
+  ];
+  for (const [name, doc, pos, want, head] of cases) {
+    it(name, () => {
+      expect(ins(doc, pos)).toMatchObject({ doc: want, head });
+    });
+  }
+
+  it("selection is kept", () => {
+    expect(ins("hello world", 0, 5)).toMatchObject({ doc: "hello world\n\n" + TABLE, head: 15 });
+  });
+
+  it("inside a table does nothing", () => {
+    expect(insertTable(mdState(T, { selection: { anchor: p(T, "c") } }))).toBeNull();
+  });
+
+  it("result parses as a 2x2 table", () => {
+    for (const [doc, pos] of [["", 0], ["text", 2]] as const) {
+      const r = ins(doc, pos)!;
+      const next = mdState(r.doc, { selection: { anchor: r.head } });
+      const t = tableAt(next, r.head);
+      expect(t?.columns).toBe(2);
+      expect(t?.rows.length).toBe(2);
     }
   });
 });
