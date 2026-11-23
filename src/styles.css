@@ -27,6 +27,12 @@ body {
   outline: none;
 }
 
+/* CodeMirror's base theme draws a black caret; the page follows light/dark. */
+#app .cm-cursor,
+#app .cm-dropCursor {
+  border-left-color: CanvasText;
+}
+
 #app .cm-scroller {
   font-family: system-ui, sans-serif;
   line-height: 1.6;
