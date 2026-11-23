@@ -2,7 +2,9 @@
 //! window for Quit); all behaviour lives in the frontend.
 
 /// Item ids are the frontend's command names (`Command` in `src/app.ts`).
-const COMMANDS: [&str; 8] = ["new", "open", "save", "close", "undo", "redo", "next", "previous"];
+const COMMANDS: [&str; 9] = [
+    "new", "open", "save", "close", "undo", "redo", "table", "next", "previous",
+];
 
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub enum MenuAction {
@@ -89,6 +91,7 @@ pub fn build(app: &tauri::AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::W
         &[
             &item("undo", "Undo", "CmdOrCtrl+Z")?,
             &item("redo", "Redo", "CmdOrCtrl+Shift+Z")?,
+            &item("table", "Insert Table", "CmdOrCtrl+Shift+T")?,
             &sep()?,
             &PredefinedMenuItem::cut(app, None)?,
             &PredefinedMenuItem::copy(app, None)?,
@@ -117,7 +120,9 @@ mod tests {
 
     #[test]
     fn commands_map_to_events() {
-        for id in ["new", "open", "save", "close", "undo", "redo", "next", "previous"] {
+        for id in [
+            "new", "open", "save", "close", "undo", "redo", "table", "next", "previous",
+        ] {
             assert!(
                 matches!(action_for(id), Some(MenuAction::Emit(c)) if c == id),
                 "{id}"

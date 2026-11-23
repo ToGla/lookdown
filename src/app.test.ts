@@ -421,7 +421,7 @@ describe("menu commands", () => {
   });
 
   test("isCommand accepts exactly the commands", () => {
-    expect(["new", "open", "close", "next", "previous", "save", "undo", "redo"].every(isCommand)).toBe(true);
+    expect(["new", "open", "close", "next", "previous", "save", "undo", "redo", "table"].every(isCommand)).toBe(true);
     expect(isCommand("quit")).toBe(false);
     expect(isCommand(undefined)).toBe(false);
     expect(isCommand(1)).toBe(false);
@@ -510,6 +510,31 @@ describe("new file", () => {
   });
 });
 
+describe("insert table", () => {
+  const TABLE = "|  |  |\n|--|--|\n|  |  |";
+
+  test("inserts a table in the shown tab and marks it dirty", async () => {
+    await app.openPaths(["/docs/a.md"]);
+    const focused = ui.view.focused;
+    await app.run("table");
+    expect(ui.view.state.doc.toString()).toBe("alpha\n\n" + TABLE + "\n");
+    expect(app.active?.doc.isDirty()).toBe(true);
+    expect(ui.view.focused).toBeGreaterThan(focused);
+  });
+
+  test("the macOS menu runs it", async () => {
+    await app.start();
+    await app.openPaths(["/docs/a.md"]);
+    host.menu("table");
+    await vi.waitFor(() => expect(ui.view.state.doc.toString()).toBe("alpha\n\n" + TABLE + "\n"));
+  });
+
+  test("table without a tab does nothing", async () => {
+    await app.run("table");
+    expect(ui.views).toHaveLength(0);
+  });
+});
+
 describe("keyCommand", () => {
   const key = (k: string, mods: Partial<Record<"ctrlKey" | "metaKey" | "shiftKey" | "altKey", boolean>> = {}) => ({
     key: k,
@@ -533,6 +558,13 @@ describe("keyCommand", () => {
     expect(keyCommand(key("n", { metaKey: true }), true)).toBe("new");
     expect(keyCommand(key("n", { ctrlKey: true }), true)).toBeNull();
     expect(keyCommand(key("n", { ctrlKey: true, shiftKey: true }), false)).toBeNull();
+  });
+
+  test("Mod-Shift-t inserts a table", () => {
+    expect(keyCommand(key("T", { ctrlKey: true, shiftKey: true }), false)).toBe("table");
+    expect(keyCommand(key("t", { metaKey: true, shiftKey: true }), true)).toBe("table");
+    expect(keyCommand(key("t", { ctrlKey: true }), false)).toBeNull();
+    expect(keyCommand(key("t", { ctrlKey: true, shiftKey: true }), true)).toBeNull();
   });
 
   test("Mod-s saves", () => {

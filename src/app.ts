@@ -10,6 +10,7 @@ import { OpenDocument } from "./document";
 import { createTabState, createView, reloadTransaction } from "./editor";
 import { previewConfig, retryImages } from "./preview/images";
 import { closeMenu } from "./preview/popup-menu";
+import { insertTable } from "./preview/table-edit";
 import type { Host } from "./host";
 import { closeAll } from "./tabs/closing";
 import { type Stamp, compareStamp, diskAction, needsOverwriteConfirm } from "./tabs/disk";
@@ -85,7 +86,7 @@ export interface AppUi {
   setUnsaved(unsaved: boolean): void;
 }
 
-const COMMANDS = ["new", "open", "close", "next", "previous", "save", "undo", "redo"] as const;
+const COMMANDS = ["new", "open", "close", "next", "previous", "save", "undo", "redo", "table"] as const;
 
 /** Frontend commands, run by window-level keys and the macOS menu bar. */
 export type Command = (typeof COMMANDS)[number];
@@ -102,7 +103,7 @@ export interface KeyLike {
   altKey: boolean;
 }
 
-/** Window-level keys: `Mod-n`, `Mod-o`, `Mod-w`, `Mod-s`, `Ctrl+(Shift+)Tab`, `Ctrl+PageDown/PageUp`. */
+/** Window-level keys: `Mod-n`, `Mod-o`, `Mod-w`, `Mod-s`, `Mod-Shift-t`, `Ctrl+(Shift+)Tab`, `Ctrl+PageDown/PageUp`. */
 export function keyCommand(e: KeyLike, isMac: boolean): Command | null {
   if (e.altKey) return null;
   const mod = isMac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
@@ -113,6 +114,7 @@ export function keyCommand(e: KeyLike, isMac: boolean): Command | null {
     if (key === "w") return "close";
     if (key === "s") return "save";
   }
+  if (mod && e.shiftKey && e.key.toLowerCase() === "t") return "table";
   if (e.ctrlKey && !e.metaKey) {
     if (e.key === "Tab") return e.shiftKey ? "previous" : "next";
     if (!e.shiftKey && e.key === "PageDown") return "next";
@@ -252,6 +254,14 @@ export class App {
       case "redo":
         if (this.shown) this.view?.redo();
         return;
+      case "table": {
+        const view = this.shown ? this.view : null;
+        if (!view) return;
+        const spec = insertTable(view.state);
+        if (spec) view.dispatch({ ...spec, scrollIntoView: true, userEvent: "input" });
+        view.focus();
+        return;
+      }
     }
   }
 

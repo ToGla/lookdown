@@ -99,13 +99,15 @@ On macOS, double-click the file in Finder or run `open -a lookdown notes.md`.
 - `Ctrl+O` (`Cmd+O`) opens files. You can also drop files onto the window.
   On Windows this replaces dragging text inside the editor.
 - On macOS the menu bar has the same commands (File: New, Open, Save, Close Tab;
-  Edit: Undo, Redo and the clipboard; Window: Next and Previous Tab).
+  Edit: Undo, Redo, Insert Table and the clipboard; Window: Next and Previous Tab).
   Quitting (`Cmd+Q`, the menu or the Dock) asks about unsaved tabs like
   closing the window does.
 - `Ctrl+W` (`Cmd+W`) closes the tab. `Ctrl+Tab` / `Ctrl+Shift+Tab` (or `Ctrl+PageDown` /
   `Ctrl+PageUp`) switch tabs.
 - `Ctrl+S` (`Cmd+S` on macOS) saves. A `•` on a tab and in the window title
   means unsaved changes. There is no autosave.
+- `Ctrl+Shift+T` (`Cmd+Shift+T`) inserts a two-column table (a header row and
+  one row) at the cursor; right-click inside a table to add rows and columns.
 - Closing a tab with unsaved changes asks Save, Don't save or Cancel. Closing
   the window asks once, listing every unsaved tab.
 - If a file changes on disk, a tab without unsaved changes reloads silently.
