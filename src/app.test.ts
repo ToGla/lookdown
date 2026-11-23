@@ -146,9 +146,9 @@ describe("startup and the empty window", () => {
     expect(paths()).toEqual(["/docs/a.md", "/docs/b.md"]);
   });
 
-  test("the empty page copy uses Ctrl+O, or Cmd+O on macOS", () => {
-    expect(emptyText(false)).toBe("Open a file with Ctrl+O, or drop one here.");
-    expect(emptyText(true)).toBe("Open a file with ⌘O, or drop one here.");
+  test("the empty page copy uses Ctrl+N/O, or Cmd+N/O on macOS", () => {
+    expect(emptyText(false)).toBe("Create a file with Ctrl+N, open one with Ctrl+O, or drop one here.");
+    expect(emptyText(true)).toBe("Create a file with ⌘N, open one with ⌘O, or drop one here.");
   });
 });
 
@@ -421,10 +421,92 @@ describe("menu commands", () => {
   });
 
   test("isCommand accepts exactly the commands", () => {
-    expect(["open", "close", "next", "previous", "save", "undo", "redo"].every(isCommand)).toBe(true);
+    expect(["new", "open", "close", "next", "previous", "save", "undo", "redo"].every(isCommand)).toBe(true);
     expect(isCommand("quit")).toBe(false);
     expect(isCommand(undefined)).toBe(false);
     expect(isCommand(1)).toBe(false);
+  });
+});
+
+describe("new file", () => {
+  const created = () => host.calls.some((c) => c.startsWith("createFile"));
+
+  test("creates an empty file at the picked path and opens it clean", async () => {
+    await app.start();
+    host.newPicks = ["/proj/idea.md"];
+    await app.run("new");
+    expect(host.text("/proj/idea.md")).toBe("");
+    expect(activePath()).toBe("/proj/idea.md");
+    expect(app.active?.doc.isDirty()).toBe(false);
+    expect(ui.statusLine).toBe("");
+  });
+
+  test("appends .md when the name has no extension", async () => {
+    host.newPicks = ["/proj/idea"];
+    await app.run("new");
+    expect(activePath()).toBe("/proj/idea.md");
+    expect(host.files.has("/proj/idea")).toBe(false);
+  });
+
+  test("cancel does nothing", async () => {
+    await app.run("new");
+    expect(created()).toBe(false);
+    expect(app.tabs).toHaveLength(0);
+  });
+
+  test("the dialog starts in the active tab's folder, or with just the name", async () => {
+    await app.run("new");
+    await app.openPaths(["/docs/a.md"]);
+    await app.run("new");
+    expect(host.newDefaults).toEqual(["untitled.md", "/docs/untitled.md"]);
+  });
+
+  test("an existing file opens unchanged", async () => {
+    host.newPicks = ["/docs/a.md"];
+    await app.run("new");
+    expect(host.text("/docs/a.md")).toBe("alpha\n");
+    expect(host.writes).toHaveLength(0);
+    expect(activePath()).toBe("/docs/a.md");
+    expect(app.active?.doc.isDirty()).toBe(false);
+    expect(ui.statusLine).toBe("a.md already exists; opened it.");
+  });
+
+  test("an appended name that is already open focuses its tab", async () => {
+    await app.openPaths(["/docs/a.md", "/docs/b.md"]);
+    host.newPicks = ["/docs/a"];
+    await app.run("new");
+    expect(paths()).toEqual(["/docs/a.md", "/docs/b.md"]);
+    expect(activePath()).toBe("/docs/a.md");
+  });
+
+  test("a create error shows a status and opens nothing", async () => {
+    host.newPicks = ["/ro/x.md"];
+    host.createErrors.set("/ro/x.md", "permission denied");
+    await app.run("new");
+    expect(ui.statusLine).toBe("Could not create /ro/x.md: permission denied");
+    expect(app.tabs).toHaveLength(0);
+  });
+
+  test("a dialog error shows a status", async () => {
+    host.pickNewError = "boom";
+    await app.run("new");
+    expect(ui.statusLine).toBe("Could not show the save dialog: boom");
+    expect(created()).toBe(false);
+  });
+
+  test("the first save of a new file writes LF", async () => {
+    host.newPicks = ["/proj/idea.md"];
+    await app.run("new");
+    ui.view.dispatch({ changes: { from: 0, insert: "# Idea\n\nmain point" } });
+    await app.run("save");
+    expect(host.text("/proj/idea.md")).toBe("# Idea\n\nmain point");
+  });
+
+  test("the macOS menu runs it", async () => {
+    await app.start();
+    host.newPicks = ["/proj/idea.md"];
+    host.menu("new");
+    await vi.waitFor(() => expect(activePath()).toBe("/proj/idea.md"));
   });
 });
 
@@ -443,6 +525,14 @@ describe("keyCommand", () => {
     expect(keyCommand(key("O", { ctrlKey: true }), false)).toBe("open");
     expect(keyCommand(key("w", { ctrlKey: true }), false)).toBe("close");
     expect(keyCommand(key("o", { metaKey: true }), false)).toBeNull();
+  });
+
+  test("Mod-n creates a file", () => {
+    expect(keyCommand(key("n", { ctrlKey: true }), false)).toBe("new");
+    expect(keyCommand(key("N", { ctrlKey: true }), false)).toBe("new");
+    expect(keyCommand(key("n", { metaKey: true }), true)).toBe("new");
+    expect(keyCommand(key("n", { ctrlKey: true }), true)).toBeNull();
+    expect(keyCommand(key("n", { ctrlKey: true, shiftKey: true }), false)).toBeNull();
   });
 
   test("Mod-s saves", () => {

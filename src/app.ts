@@ -13,7 +13,7 @@ import { closeMenu } from "./preview/popup-menu";
 import type { Host } from "./host";
 import { closeAll } from "./tabs/closing";
 import { type Stamp, compareStamp, diskAction, needsOverwriteConfirm } from "./tabs/disk";
-import { baseName } from "./tabs/paths";
+import { baseName, newFileDefaultPath, withMarkdownExtension } from "./tabs/paths";
 import { Workspace } from "./tabs/workspace";
 import { type BarAction, type BarModel, barModel, createDiskBar } from "./ui/diskbar";
 import { createEmptyPage } from "./ui/empty";
@@ -85,7 +85,7 @@ export interface AppUi {
   setUnsaved(unsaved: boolean): void;
 }
 
-const COMMANDS = ["open", "close", "next", "previous", "save", "undo", "redo"] as const;
+const COMMANDS = ["new", "open", "close", "next", "previous", "save", "undo", "redo"] as const;
 
 /** Frontend commands, run by window-level keys and the macOS menu bar. */
 export type Command = (typeof COMMANDS)[number];
@@ -102,12 +102,13 @@ export interface KeyLike {
   altKey: boolean;
 }
 
-/** Window-level keys: `Mod-o`, `Mod-w`, `Mod-s`, `Ctrl+(Shift+)Tab`, `Ctrl+PageDown/PageUp`. */
+/** Window-level keys: `Mod-n`, `Mod-o`, `Mod-w`, `Mod-s`, `Ctrl+(Shift+)Tab`, `Ctrl+PageDown/PageUp`. */
 export function keyCommand(e: KeyLike, isMac: boolean): Command | null {
   if (e.altKey) return null;
   const mod = isMac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
   if (mod && !e.shiftKey) {
     const key = e.key.toLowerCase();
+    if (key === "n") return "new";
     if (key === "o") return "open";
     if (key === "w") return "close";
     if (key === "s") return "save";
@@ -219,6 +220,8 @@ export class App {
 
   async run(command: Command): Promise<void> {
     switch (command) {
+      case "new":
+        return this.newFile();
       case "open": {
         let paths: string[];
         try {
@@ -250,6 +253,32 @@ export class App {
         if (this.shown) this.view?.redo();
         return;
     }
+  }
+
+  /**
+   * Ask where to put a new file, create it empty (never overwriting) and open
+   * it like any other file. An existing file is opened unchanged.
+   */
+  private async newFile(): Promise<void> {
+    let picked: string | null;
+    try {
+      picked = await this.host.pickNewFile(newFileDefaultPath(this.workspace.active?.path ?? null));
+    } catch (error) {
+      this.ui.status(`Could not show the save dialog: ${errorText(error)}`);
+      return;
+    }
+    if (picked === null) return;
+    const path = withMarkdownExtension(picked);
+    let created: boolean;
+    try {
+      created = await this.host.createFile(path);
+    } catch (error) {
+      this.ui.status(`Could not create ${path}: ${errorText(error)}`);
+      return;
+    }
+    await this.openPaths([path]);
+    // After the open: it sets the status line itself.
+    if (!created && this.workspace.find(path)) this.ui.status(`${baseName(path)} already exists; opened it.`);
   }
 
   /** Close a tab; an unsaved one asks Save / Don't save / Cancel first. */

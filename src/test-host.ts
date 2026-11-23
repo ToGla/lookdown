@@ -19,6 +19,14 @@ export class FakeHost implements Host {
   queued: string[] = [];
   /** Answers for `pickFiles`, used in order; empty = dialog cancelled. */
   picks: string[][] = [];
+  /** Answers for `pickNewFile`, used in order; empty = dialog cancelled. */
+  newPicks: (string | null)[] = [];
+  /** Every `defaultPath` `pickNewFile` received. */
+  readonly newDefaults: string[] = [];
+  /** Make `pickNewFile` throw this error. */
+  pickNewError: string | null = null;
+  /** Make `createFile` fail with this error. */
+  createErrors = new Map<string, string>();
   /** Answers for `ask`, used in order; when empty, the last button (Cancel). */
   answers: (0 | 1 | 2)[] = [];
   readonly asked: AskCall[] = [];
@@ -109,6 +117,21 @@ export class FakeHost implements Host {
   async pickFiles(): Promise<string[]> {
     this.calls.push("pickFiles");
     return this.picks.shift() ?? [];
+  }
+
+  async pickNewFile(defaultPath: string): Promise<string | null> {
+    this.newDefaults.push(defaultPath);
+    if (this.pickNewError !== null) throw new Error(this.pickNewError);
+    return this.newPicks.shift() ?? null;
+  }
+
+  async createFile(path: string): Promise<boolean> {
+    this.calls.push(`createFile ${path}`);
+    const error = this.createErrors.get(path);
+    if (error) throw new Error(error);
+    if (this.files.has(path)) return false;
+    this.setFile(path, "");
+    return true;
   }
 
   async readFile(path: string): Promise<Uint8Array> {

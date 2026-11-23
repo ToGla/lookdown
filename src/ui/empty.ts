@@ -1,7 +1,8 @@
 // The page shown when no tab is open.
 
 export function emptyText(isMac: boolean): string {
-  return `Open a file with ${isMac ? "⌘O" : "Ctrl+O"}, or drop one here.`;
+  const mod = isMac ? "⌘" : "Ctrl+";
+  return `Create a file with ${mod}N, open one with ${mod}O, or drop one here.`;
 }
 
 export function createEmptyPage(parent: HTMLElement, isMac: boolean): { show(visible: boolean): void } {

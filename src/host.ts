@@ -1,7 +1,7 @@
 // Everything the app shell needs from the OS, behind one interface so the dev
 // harness and the unit tests can run the whole shell with fake files.
 
-import { message, open } from "@tauri-apps/plugin-dialog";
+import { message, open, save } from "@tauri-apps/plugin-dialog";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
@@ -18,6 +18,10 @@ export interface Host {
   onFilesDropped(cb: (paths: string[]) => void): void;
   /** Native open dialog, multiple selection; empty when cancelled. */
   pickFiles(): Promise<string[]>;
+  /** Native save dialog for a new file, starting at `defaultPath`; null when cancelled. */
+  pickNewFile(defaultPath: string): Promise<string | null>;
+  /** Creates an empty file; false when the path already exists (left untouched). */
+  createFile(path: string): Promise<boolean>;
   readFile(path: string): Promise<Uint8Array>;
   writeFile(path: string, bytes: Uint8Array): Promise<void>;
   fileSize(path: string): Promise<number>;
@@ -78,6 +82,10 @@ export function tauriHost(): Host {
       const picked = await open({ multiple: true, directory: false, filters: OPEN_FILTERS });
       return picked ?? [];
     },
+    pickNewFile(defaultPath) {
+      return save({ defaultPath, filters: OPEN_FILTERS });
+    },
+    createFile: native.createFile,
     readFile: native.readFile,
     writeFile: native.writeFile,
     fileSize: native.fileSize,
