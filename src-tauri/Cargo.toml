@@ -1,6 +1,6 @@
 [package]
 name = "lookdown"
-version = "0.1.0"
+version = "0.2.0"
 description = "A lightweight WYSIWYG Markdown viewer and editor"
 edition = "2024"
 license = "MIT"
