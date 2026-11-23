@@ -41,6 +41,7 @@ pub fn run() {
             files::write_file,
             files::file_size,
             files::file_stamp,
+            files::create_file,
             quit::set_unsaved
         ]);
     #[cfg(target_os = "macos")]
@@ -140,6 +141,7 @@ mod tests {
                 "core:window:allow-set-title",
                 "core:window:allow-destroy",
                 "dialog:allow-open",
+                "dialog:allow-save",
                 "dialog:allow-message",
                 "opener:allow-open-url",
             ]

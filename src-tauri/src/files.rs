@@ -53,6 +53,16 @@ fn write_bytes(path: &Path, contents: &[u8]) -> Result<(), String> {
     std::fs::write(path, contents).map_err(|e| format!("{}: {e}", path.display()))
 }
 
+/// Creates an empty file; `Ok(false)` when one already exists, which is left
+/// untouched. `create_new` makes the check and the creation one atomic step.
+fn create_empty(path: &Path) -> Result<bool, String> {
+    match std::fs::OpenOptions::new().write(true).create_new(true).open(path) {
+        Ok(_) => Ok(true),
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => Ok(false),
+        Err(e) => Err(format!("{}: {e}", path.display())),
+    }
+}
+
 /// Drains the queue of paths to open.
 #[tauri::command]
 pub fn take_paths(queue: tauri::State<'_, PathQueue>) -> Vec<String> {
@@ -74,6 +84,14 @@ pub fn read_file(path: String) -> Result<Response, String> {
 #[tauri::command(async)]
 pub fn write_file(path: String, contents: Vec<u8>) -> Result<(), String> {
     write_bytes(Path::new(&path), &contents)
+}
+
+/// Creates an empty file for "New file"; `false` when the path already
+/// exists (never overwritten). Not gated by `check_local`: like `file_stamp`
+/// it only receives paths the user picked in a dialog.
+#[tauri::command(async)]
+pub fn create_file(path: String) -> Result<bool, String> {
+    create_empty(Path::new(&path))
 }
 
 /// Refuses UNC and device paths for `file_size` (and so image loads; not for
@@ -297,6 +315,31 @@ mod tests {
         let given = path.to_string_lossy().into_owned();
         assert_eq!(file_size(given.clone()), Ok(4));
         assert!(read_file(given).is_ok());
+    }
+
+    #[test]
+    fn create_empty_makes_a_zero_byte_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("new.md");
+        assert_eq!(create_empty(&path), Ok(true));
+        assert_eq!(read_bytes(&path).unwrap(), Vec::<u8>::new());
+    }
+
+    #[test]
+    fn create_empty_leaves_an_existing_file_untouched() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("idea.md");
+        write_bytes(&path, b"# keep me\r\n").unwrap();
+        assert_eq!(create_empty(&path), Ok(false));
+        assert_eq!(read_bytes(&path).unwrap(), b"# keep me\r\n".to_vec());
+    }
+
+    #[test]
+    fn create_empty_in_a_missing_directory_names_the_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("nope").join("new.md");
+        let err = create_empty(&path).unwrap_err();
+        assert!(err.contains("new.md"), "{err}");
     }
 
     #[test]

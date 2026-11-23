@@ -55,3 +55,8 @@ export function setTitle(title: string): Promise<void> {
 export function openUrl(url: string): Promise<void> {
   return openExternal(url);
 }
+
+/** Creates an empty file; false when the path already exists (left untouched). */
+export function createFile(path: string): Promise<boolean> {
+  return invoke<boolean>("create_file", { path });
+}
