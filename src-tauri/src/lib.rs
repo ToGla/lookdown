@@ -176,6 +176,15 @@ mod tests {
     }
 
     #[test]
+    fn macos_bundle_builds_app_and_dmg() {
+        let mac: Value = serde_json::from_str(include_str!("../tauri.macos.conf.json")).unwrap();
+        assert_eq!(mac["bundle"]["targets"], serde_json::json!(["app", "dmg"]));
+        assert_eq!(mac["bundle"]["macOS"]["minimumSystemVersion"], "11.0");
+        // "-" = ad-hoc signature over the whole bundle (no Apple account).
+        assert_eq!(mac["bundle"]["macOS"]["signingIdentity"], "-");
+    }
+
+    #[test]
     fn bundle_builds_only_the_nsis_setup() {
         assert_eq!(conf()["bundle"]["targets"], serde_json::json!(["nsis"]));
     }
