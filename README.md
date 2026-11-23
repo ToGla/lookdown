@@ -92,9 +92,13 @@ On macOS, double-click the file in Finder or run `open -a lookdown notes.md`.
 
 - One window with tabs. Running `lookdown other.md` while it is open adds a tab
   to that window, and opening a file that is already open switches to its tab.
+- `Ctrl+N` (`Cmd+N`) creates a new Markdown file: pick where in the save
+  dialog (its New Folder button makes a project folder too), and it opens as a
+  tab. A name without an extension gets `.md`. An existing file is opened as
+  it is, never emptied.
 - `Ctrl+O` (`Cmd+O`) opens files. You can also drop files onto the window.
   On Windows this replaces dragging text inside the editor.
-- On macOS the menu bar has the same commands (File: Open, Save, Close Tab;
+- On macOS the menu bar has the same commands (File: New, Open, Save, Close Tab;
   Edit: Undo, Redo and the clipboard; Window: Next and Previous Tab).
   Quitting (`Cmd+Q`, the menu or the Dock) asks about unsaved tabs like
   closing the window does.
