@@ -27,7 +27,7 @@ Open a file in dev with `pnpm tauri dev -- -- <absolute path>` (cargo runs in `s
   - `src/file/lines.ts`: raw ↔ normalized line endings; `rebuild()` turns CodeMirror changes back into raw text, copying untouched stretches verbatim
   - `src/document.ts`: `OpenDocument`, one open file (dirty state, queued saves)
   - `src/editor.ts`, `src/native.ts`, `src/main.ts`: CodeMirror setup, typed `invoke` wrappers, wiring
-- `src-tauri/`: Rust shell (`src/lib.rs` holds `run()`, `src/files.rs` the file commands, `tauri.conf.json`, `capabilities/`, `icons/`)
+- `src-tauri/`: Rust shell (`src/lib.rs` holds `run()`, `src/files.rs` the file commands, `src/menu.rs` and `src/quit.rs` macOS only, `tauri.conf.json` + `tauri.macos.conf.json`, `capabilities/`, `icons/`)
 - `tests/fixtures/`: byte-exact test files (see Hard constraints)
 - `docs/superpowers/`: specs and plans
 
@@ -58,10 +58,12 @@ The project uses the [superpowers](https://github.com/obra/superpowers) plugin, 
 
 ## Platforms
 
-Windows is the v1 ship target; macOS comes later, so write cross-platform code from the start:
+Windows and macOS (Apple Silicon) are both built; write cross-platform code:
 
 - No Windows-only APIs or path assumptions.
-- Keybindings use CodeMirror `Mod-` (Ctrl on Windows, Cmd on macOS); provide a native menu bar on macOS only (Windows keeps a menu-less window).
+- Keybindings use CodeMirror `Mod-` (Ctrl on Windows, Cmd on macOS); a native menu bar on macOS only (`src-tauri/src/menu.rs`; Windows keeps a menu-less window). Menu items emit `menu-command` events that run the frontend's `Command`s.
+- macOS shortcuts reach the webview first; the menu item with the same accelerator fires only if the page does not call `preventDefault`. A key the page handles must call `preventDefault`, or it runs twice.
+- Every quit route on macOS (menu, `Cmd+Q`, Dock, logout) becomes a close request on the window, so unsaved tabs prompt (`src-tauri/src/quit.rs` adds `applicationShouldTerminate:` to tao's delegate class).
 - Files arrive two ways and both must feed the same open-file path: command-line args (Windows, and second instances via the single-instance plugin) and the macOS open-file event (`RunEvent::Opened`).
-- Test rendering on both WebView2 (Chromium) and WebKit when macOS is added.
-- macOS builds need a Mac (plan: GitHub Actions macOS runner); signing/notarization is deferred.
+- Test rendering on both WebView2 (Chromium) and WebKit.
+- macOS builds are made locally on an Apple Silicon Mac (`app` + `dmg` targets and an ad-hoc signature in `tauri.macos.conf.json`); signing/notarization is deferred.
