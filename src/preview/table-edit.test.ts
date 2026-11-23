@@ -1,7 +1,7 @@
 import type { EditorState, TransactionSpec } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
 import { deleteColumn, deleteRow, insertColumn, insertRow, insertTable, setAlign } from "./table-edit";
-import { tableAt } from "./table-model";
+import { editAsMarkdown, rawTable, tableAt } from "./table-model";
 import { at, mdState } from "./test-helpers";
 
 const T = "| a | bb |\n|---|---|\n| c | d |";
@@ -238,6 +238,24 @@ describe("insertTable", () => {
 
   it("inside a table does nothing", () => {
     expect(insertTable(mdState(T, { selection: { anchor: p(T, "c") } }))).toBeNull();
+  });
+
+  it("inside a table shown as raw Markdown does nothing", () => {
+    for (const anchor of [p(T, "a"), p(T, "c")]) {
+      const s0 = mdState(T, { selection: { anchor } });
+      const raw = s0.update({ effects: editAsMarkdown.of(0) }).state;
+      expect(raw.field(rawTable)).toBe(0);
+      expect(insertTable(raw)).toBeNull();
+    }
+  });
+
+  it("inside a table in a blockquote does nothing", () => {
+    const Q = "> | a | b |\n> |---|---|\n> | c | d |";
+    expect(insertTable(mdState(Q, { selection: { anchor: Q.indexOf("a") } }))).toBeNull();
+  });
+
+  it("on the blank line after a table it inserts", () => {
+    expect(ins(T + "\n\n", T.length + 1)).toMatchObject({ doc: T + "\n\n" + TABLE + "\n", head: T.length + 4 });
   });
 
   it("result parses as a 2x2 table", () => {

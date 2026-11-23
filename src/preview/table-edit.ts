@@ -1,3 +1,5 @@
+import { syntaxTree } from "@codemirror/language";
+import type { SyntaxNode } from "@lezer/common";
 import { EditorSelection, type ChangeSpec, type EditorState, type TransactionSpec } from "@codemirror/state";
 import { appendRowText } from "./table-keys";
 import { cellAt, tableAt, type Row, type TableInfo } from "./table-model";
@@ -126,17 +128,27 @@ export function setAlign(state: EditorState, pos: number, align: "left" | "cente
   return { changes: { from: cell.textFrom, to: cell.textTo, insert } };
 }
 
+/** Whether pos is in any Markdown table: raw, quoted or in a list too (unlike `tableAt`). */
+function inAnyTable(state: EditorState, pos: number): boolean {
+  for (const side of [-1, 1] as const) {
+    for (let n: SyntaxNode | null = syntaxTree(state).resolveInner(pos, side); n; n = n.parent) {
+      if (n.name === "Table") return true;
+    }
+  }
+  return false;
+}
+
 /** The starter table: a header row and one body row, two columns. */
 const NEW_TABLE = "|  |  |\n|--|--|\n|  |  |";
 
 /**
  * Insert a starter table on the cursor's line when it is blank, else after it,
  * separated by a blank line from any text above and below. The cursor lands in
- * the first header cell. Null inside a grid table.
+ * the first header cell. Null inside any table, including one shown raw.
  */
 export function insertTable(state: EditorState): Spec | null {
   const head = state.selection.main.head;
-  if (tableAt(state, head)) return null;
+  if (inAnyTable(state, head)) return null;
   const doc = state.doc;
   const line = doc.lineAt(head);
   const textAt = (n: number) => (n >= 1 && n <= doc.lines ? doc.line(n).text.trim() !== "" : false);
