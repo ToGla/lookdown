@@ -29,6 +29,8 @@ export interface Host {
   /** Resolve true to let the window close. */
   onCloseRequested(cb: () => Promise<boolean>): void;
   onFocus(cb: () => void): void;
+  /** Whether some tab is unsaved: a macOS Dock quit or logout asks only then. */
+  setUnsaved(unsaved: boolean): void;
   /** macOS menu bar items; the payload is a command name, checked by the caller. */
   onMenuCommand(cb: (payload: unknown) => void): void;
 }
@@ -103,6 +105,9 @@ export function tauriHost(): Host {
         }
         if (!close) event.preventDefault();
       });
+    },
+    setUnsaved(unsaved) {
+      if (isMac) void native.setUnsaved(unsaved).catch(() => undefined);
     },
     onMenuCommand(cb) {
       void native.onMenuCommand(cb);

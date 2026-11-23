@@ -15,6 +15,11 @@ export function onPathsQueued(cb: () => void): Promise<() => void> {
   return listen("paths-queued", () => cb());
 }
 
+/** Tells the macOS quit hook whether some tab is unsaved. */
+export function setUnsaved(unsaved: boolean): Promise<void> {
+  return invoke("set_unsaved", { unsaved });
+}
+
 /** Calls back with the payload of each `menu-command` event (macOS menu bar). */
 export function onMenuCommand(cb: (payload: unknown) => void): Promise<() => void> {
   return listen<unknown>("menu-command", (event) => cb(event.payload));

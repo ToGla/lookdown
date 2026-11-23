@@ -34,12 +34,14 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(files::PathQueue::new(startup))
+        .manage(quit::Unsaved::default())
         .invoke_handler(tauri::generate_handler![
             files::take_paths,
             files::read_file,
             files::write_file,
             files::file_size,
-            files::file_stamp
+            files::file_stamp,
+            quit::set_unsaved
         ]);
     #[cfg(target_os = "macos")]
     let app = app

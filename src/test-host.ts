@@ -25,6 +25,8 @@ export class FakeHost implements Host {
   readonly titles: string[] = [];
   readonly writes: { path: string; bytes: Uint8Array }[] = [];
   readonly opened: string[] = [];
+  /** Every `setUnsaved` call, in order. */
+  readonly unsavedCalls: boolean[] = [];
   /** Host calls in order, e.g. to check the queue listener comes before takePaths. */
   readonly calls: string[] = [];
   /** Make reads or writes fail with this error. */
@@ -154,6 +156,10 @@ export class FakeHost implements Host {
 
   onFocus(cb: () => void): void {
     this.focusListeners.push(cb);
+  }
+
+  setUnsaved(unsaved: boolean): void {
+    this.unsavedCalls.push(unsaved);
   }
 
   onMenuCommand(cb: (payload: unknown) => void): void {

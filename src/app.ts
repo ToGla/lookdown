@@ -640,6 +640,7 @@ export class App {
     if (unsaved !== this.lastUnsaved) {
       this.lastUnsaved = unsaved;
       this.ui.setUnsaved(unsaved);
+      this.host.setUnsaved(unsaved);
     }
   }
 }

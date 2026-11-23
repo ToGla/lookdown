@@ -1066,6 +1066,15 @@ describe("final fixes: reloading the page", () => {
     expect(isReloadKey(key("F4"), false)).toBe(false);
   });
 
+  test("the host hears when some tab is unsaved (macOS quit asks only then)", async () => {
+    await app.openPaths(["/docs/a.md"]);
+    expect(host.unsavedCalls).toEqual([]);
+    edit();
+    expect(host.unsavedCalls).toEqual([true]);
+    await app.run("save");
+    expect(host.unsavedCalls).toEqual([true, false]);
+  });
+
   test("the unload guard is on only while a tab is unsaved", async () => {
     await app.openPaths(["/docs/a.md", "/docs/b.md"]);
     expect(ui.unsavedCalls).toEqual([]);

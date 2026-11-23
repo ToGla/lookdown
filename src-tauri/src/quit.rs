@@ -1,7 +1,28 @@
 //! macOS: quitting from the Dock or at logout asks the app first
 //! (`applicationShouldTerminate:`). Tauri's app delegate lacks that method, so
-//! it is added at startup; while the window is open the answer is "not now"
-//! and the window gets a close request, which runs the unsaved-changes prompt.
+//! it is added at startup. With unsaved tabs the answer is "not now" and the
+//! window gets a close request, which runs the unsaved-changes prompt; with
+//! none, lookdown quits right away (so logout is not interrupted).
+
+use std::sync::atomic::{AtomicBool, Ordering};
+
+/// Whether some tab is unsaved, as last reported by the frontend.
+#[derive(Default)]
+pub struct Unsaved(AtomicBool);
+
+impl Unsaved {
+    pub fn get(&self) -> bool {
+        self.0.load(Ordering::Relaxed)
+    }
+    pub fn set(&self, unsaved: bool) {
+        self.0.store(unsaved, Ordering::Relaxed);
+    }
+}
+
+#[tauri::command]
+pub fn set_unsaved(state: tauri::State<'_, Unsaved>, unsaved: bool) {
+    state.set(unsaved);
+}
 
 /// `NSApplicationTerminateReply` values.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
@@ -9,10 +30,10 @@ pub const TERMINATE_CANCEL: usize = 0;
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub const TERMINATE_NOW: usize = 1;
 
-/// Quit now only when the window is gone (its close was approved).
+/// Wait (and ask) only when an open window has unsaved tabs.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
-pub fn terminate_reply(window_open: bool) -> usize {
-    if window_open {
+pub fn terminate_reply(window_open: bool, unsaved: bool) -> usize {
+    if window_open && unsaved {
         TERMINATE_CANCEL
     } else {
         TERMINATE_NOW
@@ -24,7 +45,7 @@ pub use mac::install;
 
 #[cfg(target_os = "macos")]
 mod mac {
-    use super::{TERMINATE_NOW, terminate_reply};
+    use super::{TERMINATE_CANCEL, TERMINATE_NOW, Unsaved, terminate_reply};
     use objc2::runtime::{AnyClass, AnyObject, Imp, Sel};
     use objc2::{ffi, sel};
     use std::ffi::CStr;
@@ -45,12 +66,13 @@ mod mac {
             return TERMINATE_NOW;
         };
         let open = app.get_webview_window("main").is_some();
-        if open {
-            // Ask after this callback returns, not inside AppKit's terminate.
-            let handle = app.clone();
-            let _ = app.run_on_main_thread(move || crate::menu::close_main(&handle));
+        let reply = terminate_reply(open, app.state::<Unsaved>().get());
+        if reply == TERMINATE_CANCEL {
+            // Safe inside AppKit's terminate: `close` only posts a message to
+            // the event loop; the prompt runs after this returns.
+            crate::menu::close_main(app);
         }
-        terminate_reply(open)
+        reply
     }
 
     /// Adds `applicationShouldTerminate:` to the delegate class; false when the
@@ -89,9 +111,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn quit_waits_while_the_window_is_open() {
-        assert_eq!(terminate_reply(true), TERMINATE_CANCEL);
-        assert_eq!(terminate_reply(false), TERMINATE_NOW);
+    fn quit_waits_only_for_unsaved_tabs_in_an_open_window() {
+        assert_eq!(terminate_reply(true, true), TERMINATE_CANCEL);
+        assert_eq!(terminate_reply(true, false), TERMINATE_NOW);
+        assert_eq!(terminate_reply(false, true), TERMINATE_NOW);
+        assert_eq!(terminate_reply(false, false), TERMINATE_NOW);
+    }
+
+    #[test]
+    fn unsaved_flag_starts_clear_and_follows_the_frontend() {
+        let flag = Unsaved::default();
+        assert!(!flag.get());
+        flag.set(true);
+        assert!(flag.get());
+        flag.set(false);
+        assert!(!flag.get());
     }
 
     #[cfg(target_os = "macos")]

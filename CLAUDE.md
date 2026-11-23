@@ -63,7 +63,7 @@ Windows and macOS (Apple Silicon) are both built; write cross-platform code:
 - No Windows-only APIs or path assumptions.
 - Keybindings use CodeMirror `Mod-` (Ctrl on Windows, Cmd on macOS); a native menu bar on macOS only (`src-tauri/src/menu.rs`; Windows keeps a menu-less window). Menu items emit `menu-command` events that run the frontend's `Command`s.
 - macOS shortcuts reach the webview first; the menu item with the same accelerator fires only if the page does not call `preventDefault`. A key the page handles must call `preventDefault`, or it runs twice.
-- Every quit route on macOS (menu, `Cmd+Q`, Dock, logout) becomes a close request on the window, so unsaved tabs prompt (`src-tauri/src/quit.rs` adds `applicationShouldTerminate:` to tao's delegate class).
+- Every quit route on macOS (menu, `Cmd+Q`, Dock, logout) prompts for unsaved tabs. Menu and `Cmd+Q` send the window a close request; Dock and logout go through `applicationShouldTerminate:`, which `src-tauri/src/quit.rs` adds to tao's delegate class: it waits and sends the close request only while the frontend reports unsaved tabs (`set_unsaved`), so a clean lookdown never interrupts logout.
 - Files arrive two ways and both must feed the same open-file path: command-line args (Windows, and second instances via the single-instance plugin) and the macOS open-file event (`RunEvent::Opened`).
 - Test rendering on both WebView2 (Chromium) and WebKit.
 - macOS builds are made locally on an Apple Silicon Mac (`app` + `dmg` targets and an ad-hoc signature in `tauri.macos.conf.json`); signing/notarization is deferred.
